@@ -817,7 +817,15 @@ function renderPage(p){
   else if(p==='investments') renderInvestments();
   else if(p==='goals') renderGoals();
 }
-function renderAll(){ renderDashboard(); }
+function renderAll(){
+  // Rerenderiza a página ativa E sempre o dashboard (para os stats)
+  const activePage = document.querySelector('.page.active');
+  const pageId = activePage ? activePage.id.replace('page-','') : 'dashboard';
+  renderDashboard();
+  if(pageId==='transactions') renderTransactions();
+  else if(pageId==='installments') renderInstallments();
+  else if(pageId==='cards') renderCards();
+}
 
 // ── MONTH NAV ──
 function updateMonthLabel(){
@@ -853,15 +861,16 @@ function today(){ return new Date().toISOString().split('T')[0]; }
 function buildPaymentOptions(){
   const cardOptions = DATA.cards.map(c=>`<option value="CC::${c.id}">💳 C.C. ${c.name}</option>`).join('');
   const walletOptions = [
-    '<option value="PIX Nubank">📲 PIX Nubank</option>',
-    '<option value="PIX Sofisa">📲 PIX Sofisa</option>',
-    '<option value="Débito">💵 Débito</option>',
+    '<option value="PIX">📲 PIX</option>',
+    '<option value="Débito">💳 Débito</option>',
     '<option value="Dinheiro">💵 Dinheiro</option>',
     '<option value="Transferência">🔄 Transferência</option>',
   ].join('');
   return (cardOptions ? `<optgroup label="Cartões de Crédito">${cardOptions}</optgroup>` : '') +
-         `<optgroup label="Carteira / Saldo">${walletOptions}</optgroup>`;
+         `<optgroup label="Carteira / Saldo (sai do saldo)">${walletOptions}</optgroup>`;
 }
+// Formas que debitam da carteira automaticamente
+const WALLET_PAYMENTS = ['PIX','Débito','Dinheiro','Transferência'];
 
 function initTransactionModal(){
   document.getElementById('t-date').value = today();
@@ -905,6 +914,7 @@ window.saveTransaction = async function(){
   };
   await saveDoc('transactions',obj.id,obj);
   DATA.transactions.push(obj);
+  // Receita → entra na carteira automaticamente
   if(type === 'receita'){
     const walletEntry = {
       id:'w'+Date.now(),
@@ -917,6 +927,20 @@ window.saveTransaction = async function(){
     };
     await saveDoc('wallet', walletEntry.id, walletEntry);
     DATA.wallet.push(walletEntry);
+  }
+  // Despesa com PIX/Débito/Dinheiro/Transferência → sai da carteira automaticamente
+  if(type === 'despesa' && !linkedCardId && WALLET_PAYMENTS.includes(payment)){
+    const walletExit = {
+      id:'w'+Date.now(),
+      type:'saida',
+      desc:'['+payment+'] '+desc,
+      amount,
+      date: obj.date,
+      autoFromTransaction: obj.id,
+      createdAt: Date.now()
+    };
+    await saveDoc('wallet', walletExit.id, walletExit);
+    DATA.wallet.push(walletExit);
   }
   closeModal('modal-transaction');
   renderDashboard();
@@ -1188,7 +1212,7 @@ function renderDashboard(){
   } else {
     cardsRow.innerHTML = DATA.cards.map(card=>{
       const cardInst = instMonth.filter(i=>i.cardId===card.id).reduce((s,i)=>s+i.parcelValue,0);
-      const cardTx = monthTx.filter(t=>t.payment===card.name&&t.type==='despesa').reduce((s,t)=>s+t.amount,0);
+      const cardTx = monthTx.filter(t=>t.linkedCardId===card.id&&t.type==='despesa').reduce((s,t)=>s+t.amount,0);
       const total = cardInst+cardTx;
       const pct = card.limit ? Math.min(100,total/card.limit*100) : 0;
       return `<div class="cc-card" style="background:linear-gradient(135deg,${card.color}dd,${card.color}88)">
@@ -1359,6 +1383,8 @@ function renderInstallments(){
 // ────────────────────────────────────────
 // RENDER CARDS
 // ────────────────────────────────────────
+function getInvoiceKey(cardId,m,y){ return `inv_${cardId}_${y}_${String(m+1).padStart(2,'0')}`; }
+
 function renderCards(){
   const grid=document.getElementById('cards-grid');
   if(!DATA.cards.length){
@@ -1369,14 +1395,21 @@ function renderCards(){
   const monthTx=getMonthTransactions();
   grid.innerHTML=DATA.cards.map(card=>{
     const cardInst=instMonth.filter(i=>i.cardId===card.id).reduce((s,i)=>s+i.parcelValue,0);
-    const cardTx=monthTx.filter(t=>t.payment===card.name&&t.type==='despesa').reduce((s,t)=>s+t.amount,0);
+    const cardTx=monthTx.filter(t=>t.linkedCardId===card.id&&t.type==='despesa').reduce((s,t)=>s+t.amount,0);
     const total=cardInst+cardTx;
     const pct=card.limit?Math.min(100,total/card.limit*100):0;
+    const invKey=getInvoiceKey(card.id,currentMonth,currentYear);
+    const paidInvoice=DATA.wallet.find(w=>w.invoiceKey===invKey);
+    const monthLabel=MONTHS[currentMonth].slice(0,3)+' '+currentYear;
     return `<div class="card card-sm">
       <div class="cc-card" style="background:linear-gradient(135deg,${card.color}ee,${card.color}88);margin-bottom:14px">
-        <div><div class="cc-name">${card.name}</div></div>
+        <div><div class="cc-name">${card.name}</div>
+          ${paidInvoice?'<div style="font-size:11px;background:rgba(34,211,160,.25);color:#22d3a0;padding:2px 8px;border-radius:20px;display:inline-block;margin-top:4px">✅ Fatura Paga</div>':''}
+        </div>
         <div class="cc-meta">
-          <div><div class="cc-info">Fatura ${MONTHS[currentMonth].slice(0,3)}</div><div class="cc-amount">${fmt(total)}</div></div>
+          <div><div class="cc-info">Fatura ${monthLabel}</div>
+            <div class="cc-amount">${paidInvoice?fmt(paidInvoice.amount):fmt(total)}</div>
+          </div>
         </div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px">
@@ -1384,10 +1417,45 @@ function renderCards(){
         <div><div style="color:var(--text3)">Vence</div><div style="font-weight:700">Dia ${card.dueDay}</div></div>
         ${card.limit?`<div style="grid-column:1/-1"><div style="color:var(--text3);margin-bottom:4px">Limite: ${fmt(card.limit)}</div><div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${card.color}"></div></div><div style="color:var(--text3);margin-top:3px">${pct.toFixed(0)}% utilizado</div></div>`:''}
       </div>
-      <div style="margin-top:12px;text-align:right"><button class="btn btn-danger btn-sm" onclick="deleteCard('${card.id}')">Remover</button></div>
+      <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end">
+        ${!paidInvoice && total>0 ? `<button class="btn btn-primary btn-sm" onclick="payInvoice('${card.id}',${total})">💳 Pagar Fatura</button>` : ''}
+        ${paidInvoice ? `<button class="btn btn-ghost btn-sm" onclick="undoInvoice('${paidInvoice.id}')">↩ Desfazer</button>` : ''}
+        <button class="btn btn-danger btn-sm" onclick="deleteCard('${card.id}')">Remover</button>
+      </div>
     </div>`;
   }).join('');
 }
+
+window.payInvoice = async function(cardId, total){
+  const card=DATA.cards.find(c=>c.id===cardId);
+  if(!card) return;
+  const monthLabel=MONTHS[currentMonth]+'/'+currentYear;
+  if(!confirm(`Pagar fatura do ${card.name} de ${fmt(total)} referente a ${monthLabel}? O valor será debitado do seu Saldo.`)) return;
+  const invKey=getInvoiceKey(cardId,currentMonth,currentYear);
+  const walletExit={
+    id:'w'+Date.now(),
+    type:'saida',
+    desc:`[Fatura] ${card.name} — ${monthLabel}`,
+    amount:total,
+    date:today(),
+    invoiceKey:invKey,
+    invoiceCardId:cardId,
+    createdAt:Date.now()
+  };
+  await saveDoc('wallet',walletExit.id,walletExit);
+  DATA.wallet.push(walletExit);
+  renderCards();
+  renderDashboard();
+  alert(`✅ Fatura do ${card.name} paga! ${fmt(total)} debitado do seu saldo.`);
+};
+
+window.undoInvoice = async function(walletId){
+  if(!confirm('Desfazer pagamento da fatura?')) return;
+  await deleteDocById('wallet',walletId);
+  DATA.wallet=DATA.wallet.filter(w=>w.id!==walletId);
+  renderCards();
+  renderDashboard();
+};
 
 // ────────────────────────────────────────
 // RENDER CATEGORIES
@@ -1497,4 +1565,4 @@ document.getElementById('dash-subtitle').textContent = `${MONTHS[currentMonth]} 
 </script>
 </body>
 </html>
-adiciona preço médio nos investimentos e receita aparece em carteira e cadastrar cartoes forma de pagamento
+adiciona mes reativo e formas de pagamento simplificado e pagamento de fatura
