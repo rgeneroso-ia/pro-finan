@@ -635,11 +635,15 @@ tr:hover td{background:rgba(255,255,255,.02);}
           <option value="outro">Outro</option>
         </select>
       </div>
-      <div class="form-group"><label>Quantidade / Cotas</label><input type="number" id="inv-qty" step="0.001" min="0" placeholder="Ex: 30"></div>
+      <div class="form-group"><label>Quantidade / Cotas</label><input type="number" id="inv-qty" step="0.001" min="0" placeholder="Ex: 30" oninput="calcInvTotal()"></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label>Valor Atual Total (R$)</label><input type="number" id="inv-value" step="0.01" min="0" placeholder="Valor atual investido"></div>
+      <div class="form-group"><label>Preço Médio por Cota (R$)</label><input type="number" id="inv-avg-price" step="0.01" min="0" placeholder="Ex: 42,50" oninput="calcInvTotal()"></div>
       <div class="form-group"><label>Última atualização</label><input type="date" id="inv-updated"></div>
+    </div>
+    <div class="form-group">
+      <label>Valor Total Atual (R$) — calculado automaticamente</label>
+      <input type="text" id="inv-value" readonly style="color:var(--green);font-weight:700;background:var(--bg4)" placeholder="Qtd × Preço Médio">
     </div>
     <div class="form-actions">
       <button class="btn btn-ghost" onclick="closeModal('modal-investment')">Cancelar</button>
@@ -846,12 +850,27 @@ function today(){ return new Date().toISOString().split('T')[0]; }
 // ────────────────────────────────────────
 // TRANSACTIONS
 // ────────────────────────────────────────
+function buildPaymentOptions(){
+  const cardOptions = DATA.cards.map(c=>`<option value="CC::${c.id}">💳 C.C. ${c.name}</option>`).join('');
+  const walletOptions = [
+    '<option value="PIX Nubank">📲 PIX Nubank</option>',
+    '<option value="PIX Sofisa">📲 PIX Sofisa</option>',
+    '<option value="Débito">💵 Débito</option>',
+    '<option value="Dinheiro">💵 Dinheiro</option>',
+    '<option value="Transferência">🔄 Transferência</option>',
+  ].join('');
+  return (cardOptions ? `<optgroup label="Cartões de Crédito">${cardOptions}</optgroup>` : '') +
+         `<optgroup label="Carteira / Saldo">${walletOptions}</optgroup>`;
+}
+
 function initTransactionModal(){
   document.getElementById('t-date').value = today();
   const catSel = document.getElementById('t-category');
   catSel.innerHTML = DATA.categories.map(c=>`<option value="${c.id}">${c.emoji} ${c.name}</option>`).join('');
-  const paySel = document.getElementById('t-payment');
-  paySel.innerHTML = PAYMENT_METHODS.map(p=>`<option value="${p}">${p}</option>`).join('');
+  document.getElementById('t-payment').innerHTML = buildPaymentOptions();
+  document.getElementById('t-type').value = 'despesa';
+  document.getElementById('t-payment-group').style.display = 'block';
+  document.getElementById('t-classify-group').style.display = 'grid';
 }
 window.toggleTransType = function(){
   const type = document.getElementById('t-type').value;
@@ -862,13 +881,23 @@ window.saveTransaction = async function(){
   const desc = document.getElementById('t-desc').value.trim();
   const amount = parseFloat(document.getElementById('t-amount').value);
   if(!desc||!amount) return alert('Preencha descrição e valor');
+  const type = document.getElementById('t-type').value;
+  const rawPayment = document.getElementById('t-payment').value;
+  let payment = rawPayment;
+  let linkedCardId = null;
+  if(rawPayment.startsWith('CC::')){
+    linkedCardId = rawPayment.replace('CC::','');
+    const card = DATA.cards.find(c=>c.id===linkedCardId);
+    payment = card ? card.name : rawPayment;
+  }
   const obj = {
     id:'t'+Date.now(),
-    type: document.getElementById('t-type').value,
+    type,
     date: document.getElementById('t-date').value,
     desc, amount,
     category: document.getElementById('t-category').value,
-    payment: document.getElementById('t-payment').value,
+    payment,
+    linkedCardId,
     necessity: document.getElementById('t-necessity').value,
     nature: document.getElementById('t-nature').value,
     note: document.getElementById('t-note').value,
@@ -876,9 +905,23 @@ window.saveTransaction = async function(){
   };
   await saveDoc('transactions',obj.id,obj);
   DATA.transactions.push(obj);
+  if(type === 'receita'){
+    const walletEntry = {
+      id:'w'+Date.now(),
+      type:'entrada',
+      desc:'[Receita] '+desc,
+      amount,
+      date: obj.date,
+      autoFromTransaction: obj.id,
+      createdAt: Date.now()
+    };
+    await saveDoc('wallet', walletEntry.id, walletEntry);
+    DATA.wallet.push(walletEntry);
+  }
   closeModal('modal-transaction');
   renderDashboard();
   renderTransactions();
+  if(document.getElementById('page-wallet').classList.contains('active')) renderWallet();
   ['t-desc','t-amount','t-note'].forEach(id=>document.getElementById(id).value='');
 };
 
@@ -1046,16 +1089,25 @@ window.deleteWallet = async function(id){
 // ────────────────────────────────────────
 // INVESTMENTS
 // ────────────────────────────────────────
+window.calcInvTotal = function(){
+  const qty = parseFloat(document.getElementById('inv-qty').value)||0;
+  const avg = parseFloat(document.getElementById('inv-avg-price').value)||0;
+  const total = qty * avg;
+  document.getElementById('inv-value').value = total > 0 ? 'R$ ' + total.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}) : '';
+};
 window.saveInvestment = async function(){
   const name=document.getElementById('inv-name').value.trim();
-  const value=parseFloat(document.getElementById('inv-value').value);
-  if(!name||!value) return alert('Preencha nome e valor');
-  const obj={id:'inv'+Date.now(),name,type:document.getElementById('inv-type').value,qty:parseFloat(document.getElementById('inv-qty').value)||0,value,updatedAt:document.getElementById('inv-updated').value,createdAt:Date.now()};
+  const qty=parseFloat(document.getElementById('inv-qty').value)||0;
+  const avgPrice=parseFloat(document.getElementById('inv-avg-price').value)||0;
+  const value = qty * avgPrice;
+  if(!name) return alert('Preencha o nome do ativo');
+  if(!qty||!avgPrice) return alert('Preencha quantidade e preço médio');
+  const obj={id:'inv'+Date.now(),name,type:document.getElementById('inv-type').value,qty,avgPrice,value,updatedAt:document.getElementById('inv-updated').value,createdAt:Date.now()};
   await saveDoc('investments',obj.id,obj);
   DATA.investments.push(obj);
   closeModal('modal-investment');
   renderInvestments();
-  document.getElementById('inv-name').value='';document.getElementById('inv-value').value='';document.getElementById('inv-qty').value='';
+  document.getElementById('inv-name').value='';document.getElementById('inv-avg-price').value='';document.getElementById('inv-qty').value='';document.getElementById('inv-value').value='';
 };
 window.deleteInvestment = async function(id){
   if(!confirm('Remover ativo?')) return;
@@ -1394,7 +1446,14 @@ function renderInvestments(){
   list.innerHTML=DATA.investments.map(i=>`<div class="inv-asset">
     <div class="flex-row">
       <span class="badge badge-purple" style="background:${typeColors[i.type]}22;color:${typeColors[i.type]}">${INV_TYPE_LABELS[i.type]||i.type}</span>
-      <div><div style="font-weight:700">${i.name}</div><div style="font-size:11px;color:var(--text3)">${i.qty?i.qty+' cotas/unid':''}${i.updatedAt?' · Atualizado: '+fmtDate(i.updatedAt):''}</div></div>
+      <div>
+        <div style="font-weight:700">${i.name}</div>
+        <div style="font-size:11px;color:var(--text3)">
+          ${i.qty?i.qty+' cotas':''}
+          ${i.avgPrice?' · Preço médio: '+fmt(i.avgPrice):''}
+          ${i.updatedAt?' · Atualizado: '+fmtDate(i.updatedAt):''}
+        </div>
+      </div>
     </div>
     <div class="flex-row">
       <div style="font-weight:700;color:var(--green);font-size:16px">${fmt(i.value)}</div>
@@ -1438,3 +1497,4 @@ document.getElementById('dash-subtitle').textContent = `${MONTHS[currentMonth]} 
 </script>
 </body>
 </html>
+adiciona preço médio nos investimentos e receita aparece em carteira e cadastrar cartoes forma de pagamento
