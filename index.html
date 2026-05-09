@@ -852,8 +852,23 @@ async function loadAllData(){
   DATA.goals = g;
   DATA.debts = debts;
   DATA.allocations = allocs;
-  DATA.categories = cats.length ? cats : DEFAULT_CATS;
-  if(!cats.length){ for(const cat of DEFAULT_CATS) await saveDoc('categories',cat.id,cat); }
+  // Garante todas as categorias padrão (inclusive as especiais: Metas, Investimentos, Dívidas)
+  const SPECIAL_IDS = ['cat_invest','cat_metas','cat_dividas'];
+  if(!cats.length){
+    // Primeiro login: salva todas as categorias padrão
+    for(const cat of DEFAULT_CATS) await saveDoc('categories',cat.id,cat);
+    DATA.categories = DEFAULT_CATS;
+  } else {
+    // Já tem categorias: garante que as 3 especiais existam
+    let merged = [...cats];
+    for(const sid of SPECIAL_IDS){
+      if(!cats.find(c=>c.id===sid)){
+        const cat = DEFAULT_CATS.find(c=>c.id===sid);
+        if(cat){ await saveDoc('categories',cat.id,cat); merged.push(cat); }
+      }
+    }
+    DATA.categories = merged;
+  }
 }
 
 // ────────────────────────────────────────
@@ -1821,4 +1836,4 @@ document.getElementById('dash-subtitle').textContent = `${MONTHS[currentMonth]} 
 </body>
 </html>
 
-adicionar dividas, alocar saldos em metas
+corrigindo as questoes alocacoes, as categorias, dividas
