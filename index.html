@@ -186,18 +186,61 @@ tr:hover td{background:rgba(255,255,255,.02);}
 .inv-asset{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:var(--bg3);border-radius:var(--radius-sm);margin-bottom:8px;border:1px solid var(--border);}
 .inv-asset:last-child{margin-bottom:0;}
 
-/* ── RESPONSIVE ── */
-@media(max-width:900px){
-  .layout{grid-template-columns:1fr;}
-  .sidebar{display:none;}
-  .grid-4{grid-template-columns:1fr 1fr;}
-  .grid-3{grid-template-columns:1fr;}
-}
 .mt-16{margin-top:16px;}
 .mt-24{margin-top:24px;}
 .flex-row{display:flex;gap:12px;align-items:center;}
 .flex-between{display:flex;align-items:center;justify-content:space-between;}
 .tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;}
+
+/* ── BOTTOM NAV MOBILE ── */
+.bottom-nav{display:none;position:fixed;bottom:0;left:0;right:0;background:var(--bg2);border-top:1px solid var(--border);z-index:200;padding:6px 0 max(6px,env(safe-area-inset-bottom));}
+.bottom-nav-inner{display:flex;justify-content:space-around;align-items:center;}
+.bnav-item{display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 10px;border:none;background:none;color:var(--text3);cursor:pointer;border-radius:10px;transition:all .15s;min-width:52px;}
+.bnav-item.active{color:var(--accent2);}
+.bnav-item .bicon{font-size:20px;line-height:1;}
+.bnav-item .blabel{font-size:9px;font-weight:600;letter-spacing:.3px;white-space:nowrap;}
+.bnav-more-menu{display:none;position:fixed;bottom:70px;left:0;right:0;background:var(--bg2);border-top:1px solid var(--border);z-index:199;padding:12px 16px;gap:10px;flex-wrap:wrap;}
+.bnav-more-menu.open{display:flex;}
+.bnav-more-btn{display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;color:var(--text);cursor:pointer;font-size:13px;font-weight:600;font-family:var(--font-body);flex:1;min-width:calc(50% - 5px);}
+.bnav-more-btn.active{border-color:var(--accent);color:var(--accent2);}
+
+/* ── MOBILE HEADER ── */
+.mobile-header{display:none;background:var(--bg2);border-bottom:1px solid var(--border);padding:10px 16px;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;}
+.mobile-header .mh-logo{display:flex;align-items:center;gap:8px;font-family:var(--font-head);font-size:16px;font-weight:700;}
+.mobile-header .mh-logo .s-icon{width:28px;height:28px;background:linear-gradient(135deg,var(--accent),var(--green));border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;}
+.mobile-month{display:flex;align-items:center;gap:6px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:5px 10px;}
+.mobile-month span{font-size:12px;font-weight:600;font-family:var(--font-head);}
+.mobile-month button{background:none;border:none;color:var(--text2);cursor:pointer;font-size:16px;line-height:1;padding:0 2px;}
+
+/* ── RESPONSIVE ── */
+@media(max-width:768px){
+  .layout{grid-template-columns:1fr;}
+  .sidebar{display:none;}
+  .bottom-nav{display:block;}
+  .mobile-header{display:flex;}
+  .main{padding-bottom:80px;}
+  .page{padding:16px;}
+  .page-header{flex-wrap:wrap;gap:10px;margin-bottom:18px;}
+  .page-title{font-size:20px;}
+  .grid-4{grid-template-columns:1fr 1fr;gap:10px;}
+  .grid-3{grid-template-columns:1fr;gap:10px;}
+  .grid-2{grid-template-columns:1fr;gap:10px;}
+  .stat-value{font-size:20px;}
+  .chart-wrap{height:180px;}
+  .modal{width:95vw!important;padding:20px;}
+  .form-row{grid-template-columns:1fr;}
+  table{font-size:12px;}
+  th,td{padding:8px 8px;}
+  .inv-asset{flex-direction:column;align-items:flex-start;gap:8px;}
+  .inv-asset .flex-row{width:100%;justify-content:space-between;}
+  .cc-card{min-height:90px;}
+  .cc-amount{font-size:16px;}
+}
+@media(max-width:400px){
+  .grid-4{grid-template-columns:1fr 1fr;gap:8px;}
+  .stat-value{font-size:17px;}
+  .page{padding:12px;}
+}
 </style>
 </head>
 <body>
@@ -218,6 +261,52 @@ tr:hover td{background:rgba(255,255,255,.02);}
 
 <!-- APP -->
 <div id="app">
+  <!-- MOBILE HEADER -->
+  <div class="mobile-header">
+    <div class="mh-logo">
+      <div class="s-icon">💰</div>
+      FinançasPro
+    </div>
+    <div class="mobile-month">
+      <button onclick="prevMonth()">‹</button>
+      <span id="month-label-mobile"></span>
+      <button onclick="nextMonth()">›</button>
+    </div>
+    <img id="user-photo-mobile" src="" alt="" style="width:28px;height:28px;border-radius:50%;border:2px solid var(--border)">
+  </div>
+
+  <!-- BOTTOM NAV -->
+  <nav class="bottom-nav">
+    <div class="bottom-nav-inner">
+      <button class="bnav-item active" data-page="dashboard" onclick="navigate('dashboard');closeBnavMore()">
+        <span class="bicon">📊</span><span class="blabel">Dashboard</span>
+      </button>
+      <button class="bnav-item" data-page="transactions" onclick="navigate('transactions');closeBnavMore()">
+        <span class="bicon">💳</span><span class="blabel">Transações</span>
+      </button>
+      <button class="bnav-item" id="bnav-add" onclick="openModal('modal-transaction');closeBnavMore()">
+        <span class="bicon" style="width:40px;height:40px;background:linear-gradient(135deg,var(--accent),var(--green));border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:22px;margin-bottom:2px">＋</span>
+        <span class="blabel">Novo</span>
+      </button>
+      <button class="bnav-item" data-page="cards" onclick="navigate('cards');closeBnavMore()">
+        <span class="bicon">🃏</span><span class="blabel">Cartões</span>
+      </button>
+      <button class="bnav-item" id="bnav-more-btn" onclick="toggleBnavMore()">
+        <span class="bicon">☰</span><span class="blabel">Mais</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- BOTTOM NAV MORE MENU -->
+  <div class="bnav-more-menu" id="bnav-more-menu">
+    <button class="bnav-more-btn" data-page="installments" onclick="navigate('installments');closeBnavMore()">📅 Parcelamentos</button>
+    <button class="bnav-more-btn" data-page="categories" onclick="navigate('categories');closeBnavMore()">🏷️ Categorias</button>
+    <button class="bnav-more-btn" data-page="wallet" onclick="navigate('wallet');closeBnavMore()">👛 Carteira/Saldo</button>
+    <button class="bnav-more-btn" data-page="investments" onclick="navigate('investments');closeBnavMore()">📈 Investimentos</button>
+    <button class="bnav-more-btn" data-page="goals" onclick="navigate('goals');closeBnavMore()">🎯 Metas</button>
+    <button class="bnav-more-btn" data-page="debts" onclick="navigate('debts');closeBnavMore()">🔴 Dívidas</button>
+  </div>
+
   <div class="layout">
     <!-- SIDEBAR -->
     <aside class="sidebar">
@@ -804,6 +893,7 @@ onAuthStateChanged(auth, async user => {
     document.getElementById('login-screen').style.display='none';
     document.getElementById('app').style.display='block';
     await loadAllData();
+    syncMobileUser(user);
     renderAll();
   } else {
     document.getElementById('login-screen').style.display='flex';
@@ -878,8 +968,11 @@ window.navigate = function(page){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
   document.getElementById('page-'+page).classList.add('active');
-  document.querySelector(`[data-page="${page}"]`).classList.add('active');
+  const sidebarBtn = document.querySelector(`.nav-item[data-page="${page}"]`);
+  if(sidebarBtn) sidebarBtn.classList.add('active');
+  syncBnavActive(page);
   renderPage(page);
+  window.scrollTo(0,0);
 };
 document.querySelectorAll('.nav-item').forEach(btn=>{
   btn.onclick = ()=>navigate(btn.dataset.page);
@@ -910,7 +1003,10 @@ function renderAll(){
 
 // ── MONTH NAV ──
 function updateMonthLabel(){
-  document.getElementById('month-label').textContent = `${MONTHS[currentMonth].slice(0,3)} ${currentYear}`;
+  const label = `${MONTHS[currentMonth].slice(0,3)} ${currentYear}`;
+  document.getElementById('month-label').textContent = label;
+  const ml = document.getElementById('month-label-mobile');
+  if(ml) ml.textContent = label;
 }
 document.getElementById('prev-month').onclick = ()=>{ currentMonth--; if(currentMonth<0){currentMonth=11;currentYear--;} updateMonthLabel(); renderAll(); };
 document.getElementById('next-month').onclick = ()=>{ currentMonth++; if(currentMonth>11){currentMonth=0;currentYear++;} updateMonthLabel(); renderAll(); };
@@ -1830,10 +1926,43 @@ function renderDebts(){
   }).join('');
 }
 
+// ── BOTTOM NAV ──
+window.toggleBnavMore = function(){
+  document.getElementById('bnav-more-menu').classList.toggle('open');
+};
+window.closeBnavMore = function(){
+  document.getElementById('bnav-more-menu').classList.remove('open');
+};
+window.prevMonth = function(){
+  currentMonth--; if(currentMonth<0){currentMonth=11;currentYear--;}
+  updateMonthLabel(); renderAll();
+};
+window.nextMonth = function(){
+  currentMonth++; if(currentMonth>11){currentMonth=0;currentYear++;}
+  updateMonthLabel(); renderAll();
+};
+
+// Sync active state on bottom nav
+function syncBnavActive(page){
+  document.querySelectorAll('.bnav-item[data-page]').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.bnav-more-btn[data-page]').forEach(b=>b.classList.remove('active'));
+  const bnavEl = document.querySelector(`.bnav-item[data-page="${page}"]`);
+  const moreEl = document.querySelector(`.bnav-more-btn[data-page="${page}"]`);
+  if(bnavEl) bnavEl.classList.add('active');
+  if(moreEl){ moreEl.classList.add('active'); document.getElementById('bnav-more-btn').classList.add('active'); }
+  else document.getElementById('bnav-more-btn').classList.remove('active');
+}
+
+// Sync user photo to mobile header
+function syncMobileUser(user){
+  const mobilePhoto = document.getElementById('user-photo-mobile');
+  if(mobilePhoto && user && user.photoURL) mobilePhoto.src = user.photoURL;
+}
+
 // ── INIT ──
 document.getElementById('dash-subtitle').textContent = `${MONTHS[currentMonth]} ${currentYear}`;
 </script>
 </body>
 </html>
 
-corrigindo as questoes alocacoes, as categorias, dividas
+arrumou para celular, nao mexeu na programacao
