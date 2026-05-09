@@ -257,6 +257,7 @@ tr:hover td{background:rgba(255,255,255,.02);}
           <div class="nav-label">Extra</div>
           <button class="nav-item" data-page="investments"><span class="nav-icon">📈</span>Investimentos</button>
           <button class="nav-item" data-page="goals"><span class="nav-icon">🎯</span>Metas</button>
+          <button class="nav-item" data-page="debts"><span class="nav-icon">🔴</span>Dívidas</button>
         </div>
       </nav>
     </aside>
@@ -392,7 +393,8 @@ tr:hover td{background:rgba(255,255,255,.02);}
           <div><div class="page-title">Investimentos</div><div class="page-sub">Acompanhe seu patrimônio investido</div></div>
           <button class="btn btn-primary" onclick="openModal('modal-investment')">＋ Ativo</button>
         </div>
-        <div class="grid-3" id="inv-stats"></div>
+        <div id="inv-alloc-banner"></div>
+        <div class="grid-3 mt-16" id="inv-stats"></div>
         <div class="card mt-16" id="inv-list-card">
           <div style="font-weight:700;font-family:var(--font-head);margin-bottom:14px">Carteira de Investimentos</div>
           <div id="inv-list"></div>
@@ -405,8 +407,24 @@ tr:hover td{background:rgba(255,255,255,.02);}
           <div><div class="page-title">Metas & Objetivos</div></div>
           <button class="btn btn-primary" onclick="openModal('modal-goal')">＋ Nova Meta</button>
         </div>
-        <div class="grid-3" id="goals-grid"></div>
+        <!-- Saldo para alocar em Metas -->
+        <div id="goals-alloc-banner"></div>
+        <div class="grid-3 mt-16" id="goals-grid"></div>
       </section>
+
+      <!-- ── DÍVIDAS ── -->
+      <section class="page" id="page-debts">
+        <div class="page-header">
+          <div><div class="page-title">Dívidas</div><div class="page-sub">Controle o que você deve e acompanhe os juros</div></div>
+          <button class="btn btn-primary" onclick="openModal('modal-debt')">＋ Nova Dívida</button>
+        </div>
+        <!-- Saldo para alocar em Dívidas -->
+        <div id="debts-alloc-banner"></div>
+        <div class="grid-3 mt-16" id="debts-grid"></div>
+      </section>
+
+      <!-- ── INVESTIMENTOS (saldo alocar) ── -->
+      <!-- Banner já ficará dentro da aba Investimentos -->
 
     </main>
   </div>
@@ -670,6 +688,42 @@ tr:hover td{background:rgba(255,255,255,.02);}
   </div>
 </div>
 
+<!-- DÍVIDA -->
+<div class="modal-overlay" id="modal-debt">
+  <div class="modal" style="width:460px">
+    <div class="modal-title">Nova Dívida <button class="close-btn" onclick="closeModal('modal-debt')">×</button></div>
+    <div class="form-group"><label>Nome da Dívida</label><input type="text" id="d-name" placeholder="Ex: Empréstimo banco, Cartão atrasado..."></div>
+    <div class="form-group"><label>Emoji</label><input type="text" id="d-emoji" placeholder="💳" maxlength="2"></div>
+    <div class="form-row">
+      <div class="form-group"><label>Valor Total Devido (R$)</label><input type="number" id="d-total" step="0.01" min="0"></div>
+      <div class="form-group"><label>Já Pago (R$)</label><input type="number" id="d-paid" step="0.01" min="0" value="0"></div>
+    </div>
+    <div class="form-group"><label>Credor (quem você deve)</label><input type="text" id="d-creditor" placeholder="Ex: Banco do Brasil, João..."></div>
+    <div class="form-group"><label>Data de Vencimento</label><input type="date" id="d-deadline"></div>
+    <div class="form-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modal-debt')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveDebt()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ALOCAR SALDO -->
+<div class="modal-overlay" id="modal-allocate">
+  <div class="modal" style="width:420px">
+    <div class="modal-title" id="alloc-title">Alocar Saldo <button class="close-btn" onclick="closeModal('modal-allocate')">×</button></div>
+    <div style="background:var(--bg3);border-radius:10px;padding:14px;margin-bottom:16px">
+      <div style="font-size:11px;color:var(--text3);margin-bottom:4px">SALDO DISPONÍVEL PARA ALOCAR</div>
+      <div id="alloc-available" style="font-size:24px;font-weight:700;color:var(--green);font-family:var(--font-head)"></div>
+    </div>
+    <div class="form-group"><label>Selecione o destino</label><select id="alloc-target"></select></div>
+    <div class="form-group"><label>Valor a alocar (R$)</label><input type="number" id="alloc-amount" step="0.01" min="0" placeholder="0,00"></div>
+    <div class="form-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modal-allocate')">Cancelar</button>
+      <button class="btn btn-primary" onclick="confirmAllocate()">Alocar</button>
+    </div>
+  </div>
+</div>
+
 <!-- Firebase SDK -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -700,7 +754,7 @@ let currentMonth = new Date().getMonth(); // 0-11
 let currentYear = new Date().getFullYear();
 
 // ── DATA CACHE ──
-let DATA = { transactions:[], installments:[], cards:[], categories:[], wallet:[], investments:[], goals:[] };
+let DATA = { transactions:[], installments:[], cards:[], categories:[], wallet:[], investments:[], goals:[], debts:[], allocations:[] };
 
 const MONTHS = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho",
                 "Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
@@ -717,7 +771,12 @@ const DEFAULT_CATS = [
   {id:'cat_serv',name:'Serviços / Assinaturas',emoji:'📱',color:'#22d3a0'},
   {id:'cat_salario',name:'Salário / Receita',emoji:'💼',color:'#22d3a0'},
   {id:'cat_outros',name:'Outros',emoji:'📦',color:'#565c76'},
+  {id:'cat_invest',name:'Investimento',emoji:'📈',color:'#22d3a0',special:'investments'},
+  {id:'cat_metas',name:'Metas',emoji:'🎯',color:'#6c63ff',special:'goals'},
+  {id:'cat_dividas',name:'Dívidas',emoji:'🔴',color:'#ff5c7a',special:'debts'},
 ];
+// Categorias especiais que geram saldo para alocar
+const SPECIAL_CATS = {cat_invest:'investments',cat_metas:'goals',cat_dividas:'debts'};
 
 // ── DEFAULT PAYMENT METHODS ──
 const PAYMENT_METHODS = ['C.C. NuBank','C.C. Sofisa','PIX Nubank','PIX Sofisa','Débito','Dinheiro','Transferência'];
@@ -774,7 +833,7 @@ async function deleteDocById(col,id){
 // LOAD ALL DATA
 // ────────────────────────────────────────
 async function loadAllData(){
-  const [t,i,c,cats,w,inv,g] = await Promise.all([
+  const [t,i,c,cats,w,inv,g,debts,allocs] = await Promise.all([
     loadCollection('transactions'),
     loadCollection('installments'),
     loadCollection('cards'),
@@ -782,6 +841,8 @@ async function loadAllData(){
     loadCollection('wallet'),
     loadCollection('investments'),
     loadCollection('goals'),
+    loadCollection('debts'),
+    loadCollection('allocations'),
   ]);
   DATA.transactions = t;
   DATA.installments = i;
@@ -789,6 +850,8 @@ async function loadAllData(){
   DATA.wallet = w;
   DATA.investments = inv;
   DATA.goals = g;
+  DATA.debts = debts;
+  DATA.allocations = allocs;
   DATA.categories = cats.length ? cats : DEFAULT_CATS;
   if(!cats.length){ for(const cat of DEFAULT_CATS) await saveDoc('categories',cat.id,cat); }
 }
@@ -816,15 +879,18 @@ function renderPage(p){
   else if(p==='wallet') renderWallet();
   else if(p==='investments') renderInvestments();
   else if(p==='goals') renderGoals();
+  else if(p==='debts') renderDebts();
 }
 function renderAll(){
-  // Rerenderiza a página ativa E sempre o dashboard (para os stats)
   const activePage = document.querySelector('.page.active');
   const pageId = activePage ? activePage.id.replace('page-','') : 'dashboard';
   renderDashboard();
   if(pageId==='transactions') renderTransactions();
   else if(pageId==='installments') renderInstallments();
   else if(pageId==='cards') renderCards();
+  else if(pageId==='goals') renderGoals();
+  else if(pageId==='debts') renderDebts();
+  else if(pageId==='investments') renderInvestments();
 }
 
 // ── MONTH NAV ──
@@ -941,6 +1007,22 @@ window.saveTransaction = async function(){
     };
     await saveDoc('wallet', walletExit.id, walletExit);
     DATA.wallet.push(walletExit);
+  }
+  // Categoria especial (Metas/Investimentos/Dívidas) → gera saldo para alocar
+  const cat = DATA.categories.find(c=>c.id===obj.category);
+  if(cat && cat.special){
+    const alloc = {
+      id:'alloc'+Date.now(),
+      type: cat.special,      // 'goals' | 'investments' | 'debts'
+      amount,
+      remaining: amount,      // vai diminuindo conforme aloca
+      desc: '['+cat.name+'] '+desc,
+      date: obj.date,
+      fromTransaction: obj.id,
+      createdAt: Date.now()
+    };
+    await saveDoc('allocations', alloc.id, alloc);
+    DATA.allocations.push(alloc);
   }
   closeModal('modal-transaction');
   renderDashboard();
@@ -1500,6 +1582,7 @@ function renderWallet(){
 // RENDER INVESTMENTS
 // ────────────────────────────────────────
 function renderInvestments(){
+  renderAllocBanner('inv-alloc-banner','investments','Investimentos','📈');
   const total=DATA.investments.reduce((s,i)=>s+i.value,0);
   const rf=DATA.investments.filter(i=>i.type==='renda_fixa').reduce((s,i)=>s+i.value,0);
   const rv=DATA.investments.filter(i=>i.type!=='renda_fixa').reduce((s,i)=>s+i.value,0);
@@ -1531,9 +1614,85 @@ function renderInvestments(){
 }
 
 // ────────────────────────────────────────
+// SALDO PARA ALOCAR (compartilhado entre Metas/Inv/Dívidas)
+// ────────────────────────────────────────
+function getAvailableAlloc(type){
+  return DATA.allocations
+    .filter(a=>a.type===type)
+    .reduce((s,a)=>s+(a.remaining||0),0);
+}
+
+function renderAllocBanner(containerId, type, label, emoji){
+  const avail = getAvailableAlloc(type);
+  const el = document.getElementById(containerId);
+  if(!el) return;
+  if(avail<=0){ el.innerHTML=''; return; }
+  el.innerHTML=`<div style="background:linear-gradient(135deg,rgba(108,99,255,.2),rgba(34,211,160,.1));border:1px solid rgba(108,99,255,.35);border-radius:14px;padding:18px 22px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+    <div class="flex-row">
+      <span style="font-size:28px">${emoji}</span>
+      <div>
+        <div style="font-size:11px;font-weight:700;color:var(--text3);letter-spacing:.8px;text-transform:uppercase">Saldo disponível para alocar em ${label}</div>
+        <div style="font-size:26px;font-weight:800;color:var(--green);font-family:var(--font-head)">${fmt(avail)}</div>
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="openAllocModal('${type}')">🎯 Alocar agora</button>
+  </div>`;
+}
+
+window.openAllocModal = function(type){
+  const avail=getAvailableAlloc(type);
+  const labels={goals:'Metas',investments:'Investimentos',debts:'Dívidas'};
+  document.getElementById('alloc-title').textContent='Alocar em '+labels[type]+' ×';
+  document.getElementById('alloc-available').textContent=fmt(avail);
+  document.getElementById('alloc-amount').value='';
+  // Montar lista de destinos
+  let items=[];
+  if(type==='goals') items=DATA.goals.map(g=>({id:g.id,label:g.emoji+' '+g.name+' (falta '+fmt(Math.max(0,g.target-g.current))+')'}));
+  else if(type==='investments') items=DATA.investments.map(i=>({id:i.id,label:'📈 '+i.name}));
+  else if(type==='debts') items=DATA.debts.map(d=>({id:d.id,label:d.emoji+' '+d.name+' (falta '+fmt(Math.max(0,d.total-d.paid))+')'}));
+  const sel=document.getElementById('alloc-target');
+  sel.innerHTML=items.map(it=>`<option value="${it.id}|${type}">${it.label}</option>`).join('') || '<option value="">Nenhum cadastrado</option>';
+  sel.dataset.alloctype=type;
+  openModal('modal-allocate');
+};
+
+window.confirmAllocate = async function(){
+  const amount=parseFloat(document.getElementById('alloc-amount').value);
+  const [targetId,type]=document.getElementById('alloc-target').value.split('|');
+  if(!amount||!targetId) return alert('Preencha o valor e selecione o destino');
+  const avail=getAvailableAlloc(type);
+  if(amount>avail) return alert(`Valor maior que o disponível (${fmt(avail)})`);
+  // Debitar das allocations (FIFO)
+  let remaining=amount;
+  const toUpdate=DATA.allocations.filter(a=>a.type===type&&(a.remaining||0)>0).sort((a,b)=>a.createdAt-b.createdAt);
+  for(const alloc of toUpdate){
+    if(remaining<=0) break;
+    const deduct=Math.min(alloc.remaining,remaining);
+    alloc.remaining-=deduct;
+    remaining-=deduct;
+    await saveDoc('allocations',alloc.id,alloc);
+  }
+  // Aplicar no destino
+  if(type==='goals'){
+    const goal=DATA.goals.find(g=>g.id===targetId);
+    if(goal){ goal.current=Math.min(goal.target,(goal.current||0)+amount); await saveDoc('goals',targetId,goal); }
+  } else if(type==='investments'){
+    const inv=DATA.investments.find(i=>i.id===targetId);
+    if(inv){ inv.value=(inv.value||0)+amount; await saveDoc('investments',targetId,inv); }
+  } else if(type==='debts'){
+    const debt=DATA.debts.find(d=>d.id===targetId);
+    if(debt){ debt.paid=Math.min(debt.total,(debt.paid||0)+amount); await saveDoc('debts',targetId,debt); }
+  }
+  closeModal('modal-allocate');
+  renderGoals(); renderInvestments(); renderDebts();
+  alert(`✅ ${fmt(amount)} alocado com sucesso!`);
+};
+
+// ────────────────────────────────────────
 // RENDER GOALS
 // ────────────────────────────────────────
 function renderGoals(){
+  renderAllocBanner('goals-alloc-banner','goals','Metas','🎯');
   const grid=document.getElementById('goals-grid');
   if(!DATA.goals.length){ grid.innerHTML=`<div class="empty-state" style="grid-column:1/-1"><div class="e-icon">🎯</div><p>Nenhuma meta criada</p></div>`; return; }
   grid.innerHTML=DATA.goals.map(g=>{
@@ -1555,7 +1714,103 @@ function renderGoals(){
         <div style="text-align:right"><div style="color:var(--text3)">Meta</div><div style="font-weight:700">${fmt(g.target)}</div></div>
       </div>
       ${rem>0?`<div style="margin-top:8px;font-size:11px;color:var(--text3)">Faltam ${fmt(rem)}</div>`:'<div style="margin-top:8px"><span class="badge badge-green">✅ Meta atingida!</span></div>'}
-      <button class="btn btn-ghost btn-sm" style="width:100%;margin-top:12px;justify-content:center" onclick="addToGoal('${g.id}')">+ Adicionar valor</button>
+    </div>`;
+  }).join('');
+}
+
+// ────────────────────────────────────────
+// DÍVIDAS
+// ────────────────────────────────────────
+window.saveDebt = async function(){
+  const name=document.getElementById('d-name').value.trim();
+  const total=parseFloat(document.getElementById('d-total').value);
+  if(!name||!total) return alert('Preencha nome e valor total');
+  const obj={
+    id:'debt'+Date.now(),
+    name,
+    emoji:document.getElementById('d-emoji').value||'💳',
+    total,
+    paid:parseFloat(document.getElementById('d-paid').value)||0,
+    creditor:document.getElementById('d-creditor').value.trim(),
+    deadline:document.getElementById('d-deadline').value,
+    interestHistory:[],
+    createdAt:Date.now()
+  };
+  await saveDoc('debts',obj.id,obj);
+  DATA.debts.push(obj);
+  closeModal('modal-debt');
+  renderDebts();
+  ['d-name','d-total','d-paid','d-creditor'].forEach(id=>document.getElementById(id).value='');
+};
+
+window.deleteDebt = async function(id){
+  if(!confirm('Remover dívida?')) return;
+  await deleteDocById('debts',id);
+  DATA.debts=DATA.debts.filter(d=>d.id!==id);
+  renderDebts();
+};
+
+window.addInterest = async function(id){
+  const amount=parseFloat(prompt('Valor dos juros a adicionar (R$):'));
+  if(!amount||isNaN(amount)||amount<=0) return;
+  const debt=DATA.debts.find(d=>d.id===id);
+  if(!debt) return;
+  if(!debt.interestHistory) debt.interestHistory=[];
+  debt.interestHistory.push({amount,date:today(),addedAt:Date.now()});
+  debt.total=debt.total+amount;
+  await saveDoc('debts',id,debt);
+  renderDebts();
+  alert(`+ ${fmt(amount)} de juros adicionado. Nova dívida total: ${fmt(debt.total)}`);
+};
+
+function renderDebts(){
+  renderAllocBanner('debts-alloc-banner','debts','Dívidas','🔴');
+  const grid=document.getElementById('debts-grid');
+  if(!DATA.debts.length){
+    grid.innerHTML=`<div class="empty-state" style="grid-column:1/-1"><div class="e-icon">🔴</div><p>Nenhuma dívida cadastrada</p></div>`;
+    return;
+  }
+  const totalDivida=DATA.debts.reduce((s,d)=>s+Math.max(0,d.total-d.paid),0);
+  const totalJuros=DATA.debts.reduce((s,d)=>s+(d.interestHistory||[]).reduce((j,i)=>j+i.amount,0),0);
+  // mini stats
+  const statsHtml=`<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:20px">
+    <div class="stat-card red"><div class="stat-icon">🔴</div><div class="stat-label">Total em Dívidas</div><div class="stat-value red">${fmt(DATA.debts.reduce((s,d)=>s+d.total,0))}</div></div>
+    <div class="stat-card green"><div class="stat-icon">✅</div><div class="stat-label">Total Pago</div><div class="stat-value green">${fmt(DATA.debts.reduce((s,d)=>s+d.paid,0))}</div></div>
+    <div class="stat-card yellow"><div class="stat-icon">⚠️</div><div class="stat-label">Juros Acumulados</div><div class="stat-value yellow">${fmt(totalJuros)}</div></div>
+  </div>`;
+  grid.innerHTML=statsHtml+DATA.debts.map(d=>{
+    const remaining=Math.max(0,d.total-d.paid);
+    const pct=d.total?Math.min(100,(d.paid/d.total)*100):0;
+    const totalJurosDebt=(d.interestHistory||[]).reduce((s,i)=>s+i.amount,0);
+    return `<div class="card">
+      <div class="flex-between" style="margin-bottom:12px">
+        <div class="flex-row">
+          <span style="font-size:26px">${d.emoji}</span>
+          <div>
+            <div style="font-weight:700;font-family:var(--font-head)">${d.name}</div>
+            ${d.creditor?`<div style="font-size:11px;color:var(--text3)">Para: ${d.creditor}</div>`:''}
+            ${d.deadline?`<div style="font-size:11px;color:var(--yellow)">Vence: ${fmtDate(d.deadline)}</div>`:''}
+          </div>
+        </div>
+        <button class="btn btn-danger btn-sm" onclick="deleteDebt('${d.id}')">✕</button>
+      </div>
+      <div style="margin-bottom:10px">
+        <div class="flex-between" style="margin-bottom:4px">
+          <span style="font-size:12px;color:var(--text2)">Pago</span>
+          <span style="font-size:12px;font-weight:700">${pct.toFixed(0)}%</span>
+        </div>
+        <div class="progress-bar" style="height:8px"><div class="progress-fill" style="width:${pct}%;background:var(--green)"></div></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px;margin-bottom:10px">
+        <div><div style="color:var(--text3)">Total Devido</div><div style="font-weight:700;color:var(--red)">${fmt(d.total)}</div></div>
+        <div><div style="color:var(--text3)">Já Pago</div><div style="font-weight:700;color:var(--green)">${fmt(d.paid)}</div></div>
+        <div><div style="color:var(--text3)">Falta Pagar</div><div style="font-weight:700">${fmt(remaining)}</div></div>
+        <div><div style="color:var(--text3)">Juros Totais</div><div style="font-weight:700;color:var(--yellow)">${fmt(totalJurosDebt)}</div></div>
+      </div>
+      ${remaining<=0?'<div style="margin-bottom:10px"><span class="badge badge-green" style="font-size:13px">✅ Dívida quitada!</span></div>':''}
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost btn-sm" style="flex:1;justify-content:center" onclick="addInterest('${d.id}')">⚠️ + Juros</button>
+      </div>
     </div>`;
   }).join('');
 }
@@ -1565,4 +1820,5 @@ document.getElementById('dash-subtitle').textContent = `${MONTHS[currentMonth]} 
 </script>
 </body>
 </html>
-adiciona mes reativo e formas de pagamento simplificado e pagamento de fatura
+
+adicionar dividas, alocar saldos em metas
