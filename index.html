@@ -425,7 +425,7 @@ tr:hover td{background:rgba(255,255,255,.02);}
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:10px;align-items:end">
             <div>
               <div style="font-size:10px;font-weight:700;color:var(--text3);letter-spacing:.5px;text-transform:uppercase;margin-bottom:5px">Buscar</div>
-              <input type="text" id="filter-search" placeholder="🔍  Descrição..." style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-size:13px;font-family:var(--font-body)" oninput="renderTransactions()">
+              <input type="text" id="filter-search" placeholder="🔍  Descrição..." style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-size:13px;font-family:var(--font-body)">
             </div>
             <div>
               <div style="font-size:10px;font-weight:700;color:var(--text3);letter-spacing:.5px;text-transform:uppercase;margin-bottom:5px">Tipo</div>
@@ -2218,8 +2218,10 @@ window.clearFilters = function(){
 function initFilterCategory(){
   const sel = document.getElementById('filter-category');
   if(!sel) return;
+  const current = sel.value; // salva valor atual antes de recriar
   sel.innerHTML = '<option value="">Todas</option>' +
     DATA.categories.map(c=>`<option value="${c.id}">${c.emoji} ${c.name}</option>`).join('');
+  if(current) sel.value = current; // restaura valor selecionado
 }
 
 // ────────────────────────────────────────
@@ -2296,6 +2298,16 @@ function syncMobileUser(user){
   const mobilePhoto = document.getElementById('user-photo-mobile');
   if(mobilePhoto && user && user.photoURL) mobilePhoto.src = user.photoURL;
 }
+
+// ── FILTROS LISTENERS (mais confiável que oninput inline) ──
+document.addEventListener('DOMContentLoaded', function(){
+  const fsearch = document.getElementById('filter-search');
+  const ftype = document.getElementById('filter-type');
+  const fcat = document.getElementById('filter-category');
+  if(fsearch) { fsearch.addEventListener('input', ()=>renderTransactions()); fsearch.addEventListener('keyup', ()=>renderTransactions()); }
+  if(ftype) ftype.addEventListener('change', ()=>renderTransactions());
+  if(fcat) fcat.addEventListener('change', ()=>renderTransactions());
+});
 
 // ── INIT ──
 document.getElementById('dash-subtitle').textContent = `${MONTHS[currentMonth]} ${currentYear}`;
