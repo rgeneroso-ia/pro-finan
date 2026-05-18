@@ -195,6 +195,23 @@ tr:hover td{background:rgba(255,255,255,.02);}
 .toast.info{border-color:rgba(108,99,255,.4);color:var(--accent2);}
 @media(max-width:768px){.toast-container{top:auto;bottom:90px;right:12px;left:12px;}.toast{max-width:100%;}}
 
+/* ── MOBILE TRANSACTION CARDS ── */
+.tx-card{background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:10px;}
+.tx-card:last-child{margin-bottom:0;}
+.tx-card-left{display:flex;align-items:center;gap:10px;flex:1;min-width:0;}
+.tx-card-icon{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;}
+.tx-card-info{flex:1;min-width:0;}
+.tx-card-desc{font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.tx-card-meta{font-size:11px;color:var(--text3);margin-top:2px;}
+.tx-card-right{text-align:right;flex-shrink:0;}
+.tx-card-value{font-weight:700;font-size:15px;}
+.tx-card-actions{display:flex;gap:5px;margin-top:4px;justify-content:flex-end;}
+
+/* ── COMPARATIVO ── */
+.comp-up{color:var(--red);}
+.comp-down{color:var(--green);}
+.comp-badge{font-size:11px;font-weight:700;padding:2px 7px;border-radius:20px;margin-left:6px;}
+
 /* ── BUDGET BAR ── */
 .budget-bar-wrap{margin-top:8px;}
 .budget-bar-label{display:flex;justify-content:space-between;font-size:11px;color:var(--text3);margin-bottom:4px;}
@@ -332,6 +349,8 @@ tr:hover td{background:rgba(255,255,255,.02);}
     <button class="bnav-more-btn" data-page="investments" onclick="navigate('investments');closeBnavMore()">📈 Investimentos</button>
     <button class="bnav-more-btn" data-page="goals" onclick="navigate('goals');closeBnavMore()">🎯 Metas</button>
     <button class="bnav-more-btn" data-page="debts" onclick="navigate('debts');closeBnavMore()">🔴 Dívidas</button>
+    <button class="bnav-more-btn" data-page="annual" onclick="navigate('annual');closeBnavMore()">📆 Resumo Anual</button>
+    <button class="bnav-more-btn" data-page="report" onclick="navigate('report');closeBnavMore()">📄 Relatório PDF</button>
   </div>
 
   <div class="layout">
@@ -374,6 +393,11 @@ tr:hover td{background:rgba(255,255,255,.02);}
           <button class="nav-item" data-page="investments"><span class="nav-icon">📈</span>Investimentos</button>
           <button class="nav-item" data-page="goals"><span class="nav-icon">🎯</span>Metas</button>
           <button class="nav-item" data-page="debts"><span class="nav-icon">🔴</span>Dívidas</button>
+        </div>
+        <div class="nav-section">
+          <div class="nav-label">Relatórios</div>
+          <button class="nav-item" data-page="annual"><span class="nav-icon">📆</span>Resumo Anual</button>
+          <button class="nav-item" data-page="report"><span class="nav-icon">📄</span>Relatório PDF</button>
         </div>
       </nav>
     </aside>
@@ -559,6 +583,61 @@ tr:hover td{background:rgba(255,255,255,.02);}
 
       <!-- ── INVESTIMENTOS (saldo alocar) ── -->
       <!-- Banner já ficará dentro da aba Investimentos -->
+
+      <!-- ── RESUMO ANUAL ── -->
+      <section class="page" id="page-annual">
+        <div class="page-header">
+          <div><div class="page-title">Resumo Anual</div><div class="page-sub" id="annual-sub"></div></div>
+          <div class="flex-row">
+            <select id="annual-year-sel" style="background:var(--bg2);border:1px solid var(--border);color:var(--text);padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600" onchange="renderAnnual()"></select>
+          </div>
+        </div>
+        <div class="grid-4" id="annual-stats"></div>
+        <div class="card mt-24">
+          <div style="font-weight:700;font-family:var(--font-head);margin-bottom:16px">Receita × Despesa — Mês a Mês</div>
+          <div class="chart-wrap-lg"><canvas id="chart-annual"></canvas></div>
+        </div>
+        <div class="card mt-16">
+          <div style="font-weight:700;font-family:var(--font-head);margin-bottom:14px">Detalhamento por Mês</div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Mês</th><th>Receitas</th><th>Despesas</th><th>Parcelamentos</th><th>Saldo</th><th>Acumulado</th></tr></thead>
+            <tbody id="annual-tbody"></tbody>
+          </table></div>
+        </div>
+        <div class="card mt-16">
+          <div style="font-weight:700;font-family:var(--font-head);margin-bottom:14px">Top Categorias do Ano</div>
+          <div id="annual-cats"></div>
+        </div>
+      </section>
+
+      <!-- ── RELATÓRIO PDF ── -->
+      <section class="page" id="page-report">
+        <div class="page-header">
+          <div><div class="page-title">Relatório Mensal</div><div class="page-sub">Gere um relatório completo do mês para salvar ou imprimir</div></div>
+          <button class="btn btn-primary" onclick="generateReport()">⬇️ Baixar PDF</button>
+        </div>
+        <div class="grid-2">
+          <div class="card">
+            <div style="font-weight:700;font-family:var(--font-head);margin-bottom:14px">⚙️ Configurar Relatório</div>
+            <div class="form-group"><label>Mês de referência</label>
+              <select id="report-month" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:10px 12px;border-radius:8px;font-size:13px"></select>
+            </div>
+            <div class="form-group"><label>O que incluir</label>
+              <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px">
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:13px;color:var(--text)"><input type="checkbox" id="rep-transactions" checked> Todas as transações</label>
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:13px;color:var(--text)"><input type="checkbox" id="rep-cards" checked> Faturas dos cartões</label>
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:13px;color:var(--text)"><input type="checkbox" id="rep-installments" checked> Parcelamentos</label>
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:13px;color:var(--text)"><input type="checkbox" id="rep-categories" checked> Gastos por categoria</label>
+              </div>
+            </div>
+            <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:8px" onclick="generateReport()">📄 Gerar e Baixar PDF</button>
+          </div>
+          <div class="card" id="report-preview">
+            <div style="font-weight:700;font-family:var(--font-head);margin-bottom:14px">👁️ Pré-visualização</div>
+            <div id="report-preview-content" style="color:var(--text2);font-size:13px">Clique em "Gerar" para visualizar o relatório.</div>
+          </div>
+        </div>
+      </section>
 
     </main>
   </div>
@@ -1049,6 +1128,8 @@ function renderPage(p){
   else if(p==='investments') renderInvestments();
   else if(p==='goals') renderGoals();
   else if(p==='debts') renderDebts();
+  else if(p==='annual') renderAnnual();
+  else if(p==='report') renderReportPage();
 }
 function renderAll(){
   const activePage = document.querySelector('.page.active');
@@ -1060,6 +1141,7 @@ function renderAll(){
   else if(pageId==='goals') renderGoals();
   else if(pageId==='debts') renderDebts();
   else if(pageId==='investments') renderInvestments();
+  else if(pageId==='annual') renderAnnual();
 }
 
 // ── MONTH NAV ──
@@ -1497,9 +1579,23 @@ function renderDashboard(){
   const walletBalance = DATA.wallet.reduce((s,w)=>w.type==='entrada'?s+w.amount:s-w.amount,0);
   const saldo = totalRec - totalDesp - totalInst;
 
+  // Comparativo mês anterior
+  let prevM=currentMonth-1, prevY=currentYear;
+  if(prevM<0){prevM=11;prevY--;}
+  const prevTx=DATA.transactions.filter(t=>{const d=new Date(t.date+'T12:00:00');return d.getMonth()===prevM&&d.getFullYear()===prevY;});
+  const prevRec=prevTx.filter(t=>t.type==='receita').reduce((s,t)=>s+t.amount,0);
+  const prevDesp=prevTx.filter(t=>t.type==='despesa').reduce((s,t)=>s+t.amount,0)+getInstallmentsForMonth(prevM,prevY).reduce((s,i)=>s+i.parcelValue,0);
+  function compBadge(cur,prev,invertColor=false){
+    if(!prev||!cur) return '';
+    const diff=((cur-prev)/prev*100);
+    const up=diff>0;
+    const color=invertColor?(up?'var(--red)':'var(--green)'):(up?'var(--green)':'var(--red)');
+    const arrow=up?'↑':'↓';
+    return `<div style="font-size:11px;color:${color};font-weight:700;margin-top:4px">${arrow} ${Math.abs(diff).toFixed(0)}% vs mês anterior</div>`;
+  }
   document.getElementById('dash-stats').innerHTML = `
-    <div class="stat-card green"><div class="stat-icon">💰</div><div class="stat-label">Receitas</div><div class="stat-value green">${fmt(totalRec)}</div></div>
-    <div class="stat-card red"><div class="stat-icon">💸</div><div class="stat-label">Despesas</div><div class="stat-value red">${fmt(totalDesp+totalInst)}</div></div>
+    <div class="stat-card green"><div class="stat-icon">💰</div><div class="stat-label">Receitas</div><div class="stat-value green">${fmt(totalRec)}</div>${compBadge(totalRec,prevRec,false)}</div>
+    <div class="stat-card red"><div class="stat-icon">💸</div><div class="stat-label">Despesas</div><div class="stat-value red">${fmt(totalDesp+totalInst)}</div>${compBadge(totalDesp+totalInst,prevDesp,true)}</div>
     <div class="stat-card blue"><div class="stat-icon">📊</div><div class="stat-label">Saldo do Mês</div><div class="stat-value ${saldo>=0?'green':'red'}">${fmt(saldo)}</div></div>
     <div class="stat-card yellow"><div class="stat-icon">👛</div><div class="stat-label">Saldo em Conta</div><div class="stat-value yellow">${fmt(walletBalance)}</div></div>
   `;
@@ -1658,6 +1754,45 @@ function renderTransactions(){
 
   const tbody = document.getElementById('trans-tbody');
   if(!txs.length){ tbody.innerHTML=`<tr><td colspan="8"><div class="empty-state"><div class="e-icon">📋</div><p>Nenhuma transação encontrada</p></div></td></tr>`; return; }
+  const isMobile = window.innerWidth <= 768;
+  if(isMobile){
+    // Render como cards no mobile
+    const tableEl = tbody.closest('table');
+    const wrapper = tableEl ? tableEl.parentElement : tbody.parentElement;
+    if(!document.getElementById('tx-cards-wrap')){
+      const cardsDiv = document.createElement('div');
+      cardsDiv.id='tx-cards-wrap';
+      wrapper.parentElement.insertBefore(cardsDiv, wrapper);
+    }
+    const cardsWrap = document.getElementById('tx-cards-wrap');
+    if(tableEl) tableEl.style.display='none';
+    cardsWrap.innerHTML = txs.map(t=>{
+      const cat=getCat(t.category);
+      const isRec=t.type==='receita';
+      return `<div class="tx-card">
+        <div class="tx-card-left">
+          <div class="tx-card-icon" style="background:${cat.color}22">${cat.emoji}</div>
+          <div class="tx-card-info">
+            <div class="tx-card-desc">${t.desc}${t.recurrent==='sim'?' 🔁':''}</div>
+            <div class="tx-card-meta">${fmtDate(t.date)} · ${t.payment||'-'} · <span style="color:${cat.color}">${cat.name}</span></div>
+          </div>
+        </div>
+        <div class="tx-card-right">
+          <div class="tx-card-value" style="color:${isRec?'var(--green)':'var(--red)'}">${isRec?'+':'−'}${fmt(t.amount)}</div>
+          <div class="tx-card-actions">
+            <button class="btn btn-ghost btn-sm" onclick="editTransaction('${t.id}')">✏️</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteTransaction('${t.id}')">✕</button>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+    return;
+  }
+  // Desktop — tabela normal
+  const cardsWrap = document.getElementById('tx-cards-wrap');
+  if(cardsWrap) cardsWrap.innerHTML='';
+  const tableEl = tbody.closest('table');
+  if(tableEl) tableEl.style.display='';
   tbody.innerHTML = txs.map(t=>{
     const cat=getCat(t.category);
     const nec=NECESSITY_LABELS[t.necessity]||{label:'-',cls:'badge-gray'};
@@ -2298,6 +2433,195 @@ function syncMobileUser(user){
   const mobilePhoto = document.getElementById('user-photo-mobile');
   if(mobilePhoto && user && user.photoURL) mobilePhoto.src = user.photoURL;
 }
+
+// ────────────────────────────────────────
+// RESUMO ANUAL
+// ────────────────────────────────────────
+function renderAnnual(){
+  const yearSel = document.getElementById('annual-year-sel');
+  // Popular anos disponíveis
+  const years = [...new Set(DATA.transactions.map(t=>t.date?t.date.split('-')[0]:null).filter(Boolean))];
+  if(!years.includes(String(currentYear))) years.push(String(currentYear));
+  years.sort((a,b)=>b-a);
+  const selYear = parseInt(yearSel.value)||currentYear;
+  yearSel.innerHTML = years.map(y=>`<option value="${y}" ${y==selYear?'selected':''}>${y}</option>`).join('');
+  document.getElementById('annual-sub').textContent = `Visão completa de ${selYear}`;
+
+  let totalRec=0, totalDesp=0, totalSaldo=0;
+  let accumulated=0;
+  const rows=[];
+  let chartLabels=[], chartRec=[], chartDesp=[];
+  const catTotals={};
+
+  for(let m=0;m<12;m++){
+    const txs=DATA.transactions.filter(t=>{const d=new Date(t.date+'T12:00:00');return d.getMonth()===m&&d.getFullYear()===selYear;});
+    const rec=txs.filter(t=>t.type==='receita').reduce((s,t)=>s+t.amount,0);
+    const desp=txs.filter(t=>t.type==='despesa').reduce((s,t)=>s+t.amount,0);
+    const inst=getInstallmentsForMonth(m,selYear).reduce((s,i)=>s+i.parcelValue,0);
+    const saldo=rec-desp-inst;
+    accumulated+=saldo;
+    totalRec+=rec; totalDesp+=desp+inst;
+    txs.filter(t=>t.type==='despesa').forEach(t=>{catTotals[t.category]=(catTotals[t.category]||0)+t.amount;});
+    chartLabels.push(MONTHS[m].slice(0,3));
+    chartRec.push(rec); chartDesp.push(desp+inst);
+    const isCurrentMonth = m===currentMonth && selYear===currentYear;
+    rows.push(`<tr style="${isCurrentMonth?'background:rgba(108,99,255,.08)':''}">
+      <td style="font-weight:${isCurrentMonth?'700':'400'}">${MONTHS[m]}${isCurrentMonth?' ◀':''}</td>
+      <td style="color:var(--green);font-weight:600">${rec>0?fmt(rec):'—'}</td>
+      <td style="color:var(--red);font-weight:600">${desp+inst>0?fmt(desp+inst):'—'}</td>
+      <td style="color:var(--yellow)">${inst>0?fmt(inst):'—'}</td>
+      <td style="color:${saldo>=0?'var(--green)':'var(--red)'};font-weight:700">${fmt(saldo)}</td>
+      <td style="color:${accumulated>=0?'var(--blue)':'var(--red)'};font-weight:600">${fmt(accumulated)}</td>
+    </tr>`);
+  }
+  totalSaldo=totalRec-totalDesp;
+
+  document.getElementById('annual-stats').innerHTML=`
+    <div class="stat-card green"><div class="stat-icon">💰</div><div class="stat-label">Total Receitas ${selYear}</div><div class="stat-value green">${fmt(totalRec)}</div></div>
+    <div class="stat-card red"><div class="stat-icon">💸</div><div class="stat-label">Total Despesas ${selYear}</div><div class="stat-value red">${fmt(totalDesp)}</div></div>
+    <div class="stat-card blue"><div class="stat-icon">📊</div><div class="stat-label">Saldo do Ano</div><div class="stat-value ${totalSaldo>=0?'green':'red'}">${fmt(totalSaldo)}</div></div>
+    <div class="stat-card yellow"><div class="stat-icon">📅</div><div class="stat-label">Média Mensal Desp.</div><div class="stat-value yellow">${fmt(totalDesp/12)}</div></div>
+  `;
+  document.getElementById('annual-tbody').innerHTML=rows.join('');
+
+  // Gráfico anual
+  if(window._chartAnnual) window._chartAnnual.destroy();
+  window._chartAnnual = new Chart(document.getElementById('chart-annual'),{
+    type:'bar',
+    data:{labels:chartLabels,datasets:[
+      {label:'Receita',data:chartRec,backgroundColor:'rgba(34,211,160,.7)',borderRadius:5},
+      {label:'Despesa',data:chartDesp,backgroundColor:'rgba(255,92,122,.7)',borderRadius:5}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#8b90a7',font:{size:11}}}},
+      scales:{x:{ticks:{color:'#565c76'},grid:{color:'rgba(255,255,255,.04)'}},y:{ticks:{color:'#565c76',callback:v=>'R$'+v.toLocaleString('pt-BR')},grid:{color:'rgba(255,255,255,.06)'}}}}
+  });
+
+  // Top categorias
+  const topCats=Object.entries(catTotals).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  const maxVal=topCats[0]?topCats[0][1]:1;
+  document.getElementById('annual-cats').innerHTML=topCats.map(([id,val])=>{
+    const cat=getCat(id);
+    const pct=val/maxVal*100;
+    return `<div style="margin-bottom:10px">
+      <div class="flex-between" style="margin-bottom:4px">
+        <span style="font-size:13px">${cat.emoji} ${cat.name}</span>
+        <span style="font-weight:700;color:${cat.color}">${fmt(val)}</span>
+      </div>
+      <div class="budget-bar"><div class="budget-fill ok" style="width:${pct}%;background:${cat.color}"></div></div>
+    </div>`;
+  }).join('') || '<div class="empty-state"><div class="e-icon">📊</div><p>Nenhum dado para este ano</p></div>';
+}
+
+// ────────────────────────────────────────
+// RELATÓRIO PDF
+// ────────────────────────────────────────
+function renderReportPage(){
+  const sel = document.getElementById('report-month');
+  const now = new Date();
+  let opts='';
+  for(let i=0;i<12;i++){
+    const m=(now.getMonth()-i+12)%12;
+    const y=now.getFullYear()-(now.getMonth()-i<0?1:0);
+    const val=`${y}-${String(m+1).padStart(2,'0')}`;
+    const cur=`${y}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    opts+=`<option value="${val}" ${val===cur?'selected':''}>${MONTHS[m]} ${y}</option>`;
+  }
+  sel.innerHTML=opts;
+}
+
+window.generateReport = function(){
+  const selVal = document.getElementById('report-month').value;
+  if(!selVal) return;
+  const [y,m] = selVal.split('-').map(Number);
+  const month = m-1;
+  const monthTx = DATA.transactions.filter(t=>{const d=new Date(t.date+'T12:00:00');return d.getMonth()===month&&d.getFullYear()===y;});
+  const instMonth = getInstallmentsForMonth(month,y);
+  const totalRec = monthTx.filter(t=>t.type==='receita').reduce((s,t)=>s+t.amount,0);
+  const totalDesp = monthTx.filter(t=>t.type==='despesa').reduce((s,t)=>s+t.amount,0);
+  const totalInst = instMonth.reduce((s,i)=>s+i.parcelValue,0);
+  const saldo = totalRec-totalDesp-totalInst;
+  const incTx = document.getElementById('rep-transactions').checked;
+  const incCards = document.getElementById('rep-cards').checked;
+  const incInst = document.getElementById('rep-installments').checked;
+  const incCats = document.getElementById('rep-categories').checked;
+
+  // Gastos por categoria
+  const catMap={};
+  monthTx.filter(t=>t.type==='despesa').forEach(t=>{catMap[t.category]=(catMap[t.category]||0)+t.amount;});
+  instMonth.forEach(i=>{catMap[i.categoryId]=(catMap[i.categoryId]||0)+i.parcelValue;});
+
+  const html=`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">
+  <title>Relatório ${MONTHS[month]} ${y}</title>
+  <style>
+    body{font-family:'Segoe UI',sans-serif;background:#fff;color:#1a1a2e;padding:32px;max-width:800px;margin:0 auto;}
+    h1{font-size:24px;margin:0 0 4px;color:#6c63ff;}
+    .sub{color:#666;font-size:13px;margin-bottom:24px;}
+    .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px;}
+    .stat{background:#f8f8ff;border-radius:10px;padding:14px;text-align:center;}
+    .stat-label{font-size:10px;color:#888;text-transform:uppercase;letter-spacing:.5px;}
+    .stat-val{font-size:20px;font-weight:700;margin-top:4px;}
+    .green{color:#22c55e;} .red{color:#ef4444;} .blue{color:#3b82f6;} .yellow{color:#f59e0b;}
+    h2{font-size:15px;font-weight:700;margin:20px 0 10px;padding-bottom:6px;border-bottom:2px solid #eee;}
+    table{width:100%;border-collapse:collapse;font-size:12px;}
+    th{background:#f3f4f6;padding:8px;text-align:left;font-size:10px;text-transform:uppercase;color:#666;}
+    td{padding:8px;border-bottom:1px solid #f0f0f0;}
+    .badge{display:inline-block;padding:2px 7px;border-radius:20px;font-size:10px;font-weight:600;background:#eee;}
+    .bar-wrap{margin:6px 0;} .bar{height:8px;background:#e5e7eb;border-radius:4px;overflow:hidden;}
+    .bar-fill{height:100%;border-radius:4px;background:#6c63ff;}
+    footer{margin-top:32px;font-size:11px;color:#aaa;text-align:center;border-top:1px solid #eee;padding-top:12px;}
+  </style></head><body>
+  <h1>📊 FinançasPro — Relatório Mensal</h1>
+  <div class="sub">${MONTHS[month]} ${y} · Gerado em ${new Date().toLocaleDateString('pt-BR')}</div>
+  <div class="grid">
+    <div class="stat"><div class="stat-label">Receitas</div><div class="stat-val green">${fmt(totalRec)}</div></div>
+    <div class="stat"><div class="stat-label">Despesas</div><div class="stat-val red">${fmt(totalDesp+totalInst)}</div></div>
+    <div class="stat"><div class="stat-label">Saldo</div><div class="stat-val ${saldo>=0?'blue':'red'}">${fmt(saldo)}</div></div>
+    <div class="stat"><div class="stat-label">Transações</div><div class="stat-val">${monthTx.length}</div></div>
+  </div>
+  ${incCats && Object.keys(catMap).length ? `<h2>Gastos por Categoria</h2>
+    ${Object.entries(catMap).sort((a,b)=>b[1]-a[1]).map(([id,val])=>{
+      const cat=getCat(id); const pct=Math.min(100,val/(totalDesp+totalInst||1)*100);
+      return `<div style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;font-size:12px"><span>${cat.emoji} ${cat.name}</span><strong>${fmt(val)}</strong></div>
+      <div class="bar-wrap"><div class="bar"><div class="bar-fill" style="width:${pct}%"></div></div></div></div>`;
+    }).join('')}`:''}
+  ${incCards && DATA.cards.length ? `<h2>Cartões de Crédito</h2><table><tr><th>Cartão</th><th>Fecha</th><th>Vence</th><th>Fatura</th></tr>
+    ${DATA.cards.map(card=>{
+      const ci=instMonth.filter(i=>i.cardId===card.id).reduce((s,i)=>s+i.parcelValue,0);
+      const ct=monthTx.filter(t=>t.linkedCardId===card.id&&t.type==='despesa').reduce((s,t)=>s+t.amount,0);
+      const invKey=getInvoiceKey(card.id,month,y);
+      const paid=DATA.wallet.find(w=>w.invoiceKey===invKey);
+      return `<tr><td><strong>${card.name}</strong></td><td>Dia ${card.closeDay}</td><td>Dia ${card.dueDay}</td><td><strong>${fmt(ci+ct)}</strong> ${paid?'<span class="badge" style="background:#dcfce7;color:#16a34a">✅ Paga</span>':'<span class="badge" style="background:#fee2e2;color:#dc2626">Pendente</span>'}</td></tr>`;
+    }).join('')}</table>`:''}
+  ${incInst && instMonth.length ? `<h2>Parcelamentos do Mês</h2><table><tr><th>Descrição</th><th>Parcela</th><th>Valor</th></tr>
+    ${instMonth.map(i=>`<tr><td>${i.desc}</td><td>${i.paidCount}/${i.parcels}</td><td><strong>${fmt(i.parcelValue)}</strong></td></tr>`).join('')}</table>`:''}
+  ${incTx && monthTx.length ? `<h2>Todas as Transações</h2><table><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Pagamento</th><th>Valor</th></tr>
+    ${[...monthTx].sort((a,b)=>b.date.localeCompare(a.date)).map(t=>{const cat=getCat(t.category);
+      return `<tr><td>${fmtDate(t.date)}</td><td>${t.desc}</td><td>${cat.emoji} ${cat.name}</td><td>${t.payment||'-'}</td><td style="color:${t.type==='receita'?'#16a34a':'#dc2626'};font-weight:700">${t.type==='receita'?'+':'−'}${fmt(t.amount)}</td></tr>`;
+    }).join('')}</table>`:''}
+  <footer>FinançasPro · Relatório gerado automaticamente · ${new Date().toLocaleString('pt-BR')}</footer>
+  </body></html>`;
+
+  // Preview
+  document.getElementById('report-preview-content').innerHTML=`
+    <div style="background:var(--bg3);border-radius:10px;padding:14px;font-size:12px">
+      <div style="font-weight:700;margin-bottom:8px">📄 ${MONTHS[month]} ${y}</div>
+      <div>✅ Receitas: <strong style="color:var(--green)">${fmt(totalRec)}</strong></div>
+      <div>✅ Despesas: <strong style="color:var(--red)">${fmt(totalDesp+totalInst)}</strong></div>
+      <div>✅ Saldo: <strong style="color:${saldo>=0?'var(--green)':'var(--red)'}">${fmt(saldo)}</strong></div>
+      <div>✅ ${monthTx.length} transações incluídas</div>
+      ${incCards?`<div>✅ ${DATA.cards.length} cartões</div>`:''}
+      ${incInst?`<div>✅ ${instMonth.length} parcelamentos</div>`:''}
+      <div style="margin-top:10px;color:var(--text3)">Clique em "Gerar e Baixar PDF" para baixar</div>
+    </div>`;
+
+  // Download
+  const blob = new Blob([html],{type:'text/html'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href=url; a.download=`relatorio-${MONTHS[month].toLowerCase()}-${y}.html`;
+  a.click(); URL.revokeObjectURL(url);
+  toast(`Relatório de ${MONTHS[month]} ${y} baixado!`,'success');
+};
 
 // ── FILTROS LISTENERS (mais confiável que oninput inline) ──
 document.addEventListener('DOMContentLoaded', function(){
