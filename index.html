@@ -195,6 +195,9 @@ tr:hover td{background:rgba(255,255,255,.02);}
 .toast.info{border-color:rgba(108,99,255,.4);color:var(--accent2);}
 @media(max-width:768px){.toast-container{top:auto;bottom:90px;right:12px;left:12px;}.toast{max-width:100%;}}
 
+/* ── SALDO CHART ── */
+.saldo-chart-wrap{position:relative;height:160px;margin-top:12px;}
+
 /* ── MOBILE TRANSACTION CARDS ── */
 .tx-card{background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:10px;}
 .tx-card:last-child{margin-bottom:0;}
@@ -351,6 +354,8 @@ tr:hover td{background:rgba(255,255,255,.02);}
     <button class="bnav-more-btn" data-page="debts" onclick="navigate('debts');closeBnavMore()">🔴 Dívidas</button>
     <button class="bnav-more-btn" data-page="annual" onclick="navigate('annual');closeBnavMore()">📆 Resumo Anual</button>
     <button class="bnav-more-btn" data-page="report" onclick="navigate('report');closeBnavMore()">📄 Relatório PDF</button>
+    <button class="bnav-more-btn" data-page="export" onclick="navigate('export');closeBnavMore()">📊 Exportar Excel</button>
+    <button class="bnav-more-btn" data-page="settings" onclick="navigate('settings');closeBnavMore()">⚙️ Configurações</button>
   </div>
 
   <div class="layout">
@@ -398,6 +403,11 @@ tr:hover td{background:rgba(255,255,255,.02);}
           <div class="nav-label">Relatórios</div>
           <button class="nav-item" data-page="annual"><span class="nav-icon">📆</span>Resumo Anual</button>
           <button class="nav-item" data-page="report"><span class="nav-icon">📄</span>Relatório PDF</button>
+          <button class="nav-item" data-page="export"><span class="nav-icon">📊</span>Exportar Excel</button>
+        </div>
+        <div class="nav-section">
+          <div class="nav-label">Sistema</div>
+          <button class="nav-item" data-page="settings"><span class="nav-icon">⚙️</span>Configurações</button>
         </div>
       </nav>
     </aside>
@@ -583,6 +593,86 @@ tr:hover td{background:rgba(255,255,255,.02);}
 
       <!-- ── INVESTIMENTOS (saldo alocar) ── -->
       <!-- Banner já ficará dentro da aba Investimentos -->
+
+      <!-- ── EXPORTAR ── -->
+      <section class="page" id="page-export">
+        <div class="page-header">
+          <div><div class="page-title">Exportar Dados</div><div class="page-sub">Baixe suas transações em planilha Excel ou CSV</div></div>
+        </div>
+        <div class="grid-2">
+          <div class="card">
+            <div style="font-size:22px;margin-bottom:10px">📊</div>
+            <div style="font-weight:700;font-family:var(--font-head);font-size:16px;margin-bottom:6px">Exportar Excel (.csv)</div>
+            <div style="font-size:13px;color:var(--text2);margin-bottom:16px">Exporta todas as transações do período selecionado em formato CSV, compatível com Excel, Google Sheets e Numbers.</div>
+            <div class="form-group"><label>Período</label>
+              <select id="export-period" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:10px 12px;border-radius:8px;font-size:13px">
+                <option value="month">Mês atual</option>
+                <option value="3months">Últimos 3 meses</option>
+                <option value="6months">Últimos 6 meses</option>
+                <option value="year">Ano atual</option>
+                <option value="all">Todos os dados</option>
+              </select>
+            </div>
+            <div class="form-group"><label>Incluir</label>
+              <div style="display:flex;flex-direction:column;gap:8px">
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:13px;color:var(--text)"><input type="checkbox" id="exp-transactions" checked> Transações</label>
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:13px;color:var(--text)"><input type="checkbox" id="exp-installments" checked> Parcelamentos</label>
+              </div>
+            </div>
+            <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:8px" onclick="exportCSV()">⬇️ Baixar CSV / Excel</button>
+          </div>
+          <div class="card">
+            <div style="font-size:22px;margin-bottom:10px">📋</div>
+            <div style="font-weight:700;font-family:var(--font-head);font-size:16px;margin-bottom:6px">Prévia dos dados</div>
+            <div id="export-preview" style="font-size:12px;color:var(--text2)">Selecione o período e clique em exportar.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── CONFIGURAÇÕES ── -->
+      <section class="page" id="page-settings">
+        <div class="page-header">
+          <div><div class="page-title">Configurações</div><div class="page-sub">Personalize o sistema do seu jeito</div></div>
+        </div>
+        <div class="grid-2">
+          <!-- Carteira -->
+          <div class="card">
+            <div style="font-weight:700;font-family:var(--font-head);margin-bottom:16px">👛 Saldo Inicial da Carteira</div>
+            <div style="font-size:13px;color:var(--text2);margin-bottom:14px">Define o saldo de abertura da sua carteira. Use isso se você já tinha dinheiro na conta antes de começar a usar o sistema.</div>
+            <div class="form-group"><label>Saldo inicial (R$)</label><input type="number" id="cfg-initial-balance" step="0.01" placeholder="Ex: 2500,00"></div>
+            <div class="form-group"><label>Data de referência</label><input type="date" id="cfg-initial-date"></div>
+            <button class="btn btn-primary" onclick="saveInitialBalance()">Salvar Saldo Inicial</button>
+          </div>
+          <!-- Formas de pagamento -->
+          <div class="card">
+            <div style="font-weight:700;font-family:var(--font-head);margin-bottom:16px">💳 Formas de Pagamento (Carteira)</div>
+            <div style="font-size:13px;color:var(--text2);margin-bottom:14px">Gerencie os métodos de pagamento que saem do seu saldo (além dos cartões de crédito cadastrados).</div>
+            <div id="payment-methods-list" style="margin-bottom:14px"></div>
+            <div class="flex-row">
+              <input type="text" id="new-payment-method" placeholder="Ex: PIX Inter, Débito..." style="flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-size:13px">
+              <button class="btn btn-primary btn-sm" onclick="addPaymentMethod()">＋</button>
+            </div>
+          </div>
+          <!-- Transferência entre contas -->
+          <div class="card">
+            <div style="font-weight:700;font-family:var(--font-head);margin-bottom:16px">🔄 Transferência entre Contas</div>
+            <div style="font-size:13px;color:var(--text2);margin-bottom:14px">Registre movimentações entre suas contas sem afetar receitas ou despesas. O valor sai de uma conta e entra na outra.</div>
+            <div class="form-group"><label>Descrição</label><input type="text" id="transf-desc" placeholder="Ex: NuBank → Sofisa"></div>
+            <div class="form-row">
+              <div class="form-group"><label>Valor (R$)</label><input type="number" id="transf-amount" step="0.01" min="0"></div>
+              <div class="form-group"><label>Data</label><input type="date" id="transf-date"></div>
+            </div>
+            <button class="btn btn-primary" onclick="saveTransfer()">Registrar Transferência</button>
+          </div>
+          <!-- Info da conta -->
+          <div class="card">
+            <div style="font-weight:700;font-family:var(--font-head);margin-bottom:16px">👤 Sua Conta</div>
+            <div id="settings-user-info" style="margin-bottom:16px"></div>
+            <div style="font-size:13px;color:var(--text2);margin-bottom:14px">Seus dados ficam salvos no Firebase vinculados à sua conta Google. Ninguém mais tem acesso.</div>
+            <button class="btn btn-danger" onclick="if(confirm('Sair da conta?')) document.getElementById('btn-signout').click()">↪ Sair da conta</button>
+          </div>
+        </div>
+      </section>
 
       <!-- ── RESUMO ANUAL ── -->
       <section class="page" id="page-annual">
@@ -982,7 +1072,8 @@ let currentMonth = new Date().getMonth(); // 0-11
 let currentYear = new Date().getFullYear();
 
 // ── DATA CACHE ──
-let DATA = { transactions:[], installments:[], cards:[], categories:[], wallet:[], investments:[], goals:[], debts:[], allocations:[] };
+let DATA = { transactions:[], installments:[], cards:[], categories:[], wallet:[], investments:[], goals:[], debts:[], allocations:[], settings:{} };
+let CUSTOM_PAYMENT_METHODS = ['PIX','Débito','Dinheiro','Transferência'];
 
 const MONTHS = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho",
                 "Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
@@ -1074,6 +1165,14 @@ async function loadAllData(){
     loadCollection('debts'),
     loadCollection('allocations'),
   ]);
+  // Carregar settings
+  try {
+    const settingsSnap = await getDoc(doc(db,'users',uid(),'config','settings'));
+    if(settingsSnap.exists()) {
+      DATA.settings = settingsSnap.data();
+      if(DATA.settings.paymentMethods) CUSTOM_PAYMENT_METHODS = DATA.settings.paymentMethods;
+    }
+  } catch(e){}
   DATA.transactions = t;
   DATA.installments = i;
   DATA.cards = c;
@@ -1130,6 +1229,8 @@ function renderPage(p){
   else if(p==='debts') renderDebts();
   else if(p==='annual') renderAnnual();
   else if(p==='report') renderReportPage();
+  else if(p==='export') renderExportPage();
+  else if(p==='settings') renderSettings();
 }
 function renderAll(){
   const activePage = document.querySelector('.page.active');
@@ -1180,17 +1281,13 @@ function today(){ return new Date().toISOString().split('T')[0]; }
 // ────────────────────────────────────────
 function buildPaymentOptions(){
   const cardOptions = DATA.cards.map(c=>`<option value="CC::${c.id}">💳 C.C. ${c.name}</option>`).join('');
-  const walletOptions = [
-    '<option value="PIX">📲 PIX</option>',
-    '<option value="Débito">💳 Débito</option>',
-    '<option value="Dinheiro">💵 Dinheiro</option>',
-    '<option value="Transferência">🔄 Transferência</option>',
-  ].join('');
+  const walletOptions = CUSTOM_PAYMENT_METHODS.map(p=>`<option value="${p}">${p}</option>`).join('');
   return (cardOptions ? `<optgroup label="Cartões de Crédito">${cardOptions}</optgroup>` : '') +
          `<optgroup label="Carteira / Saldo (sai do saldo)">${walletOptions}</optgroup>`;
 }
-// Formas que debitam da carteira automaticamente
-const WALLET_PAYMENTS = ['PIX','Débito','Dinheiro','Transferência'];
+// Formas que debitam da carteira automaticamente (dinâmico)
+const WALLET_PAYMENTS_BASE = ['PIX','Débito','Dinheiro','Transferência'];
+function isWalletPayment(p){ return CUSTOM_PAYMENT_METHODS.includes(p) || WALLET_PAYMENTS_BASE.includes(p); }
 
 function initTransactionModal(){
   document.getElementById('t-date').value = today();
@@ -1273,7 +1370,7 @@ window.saveTransaction = async function(){
     DATA.wallet.push(walletEntry);
   }
   // Despesa com PIX/Débito/Dinheiro/Transferência → sai da carteira
-  if(type === 'despesa' && !linkedCardId && WALLET_PAYMENTS.includes(payment)){
+  if(type === 'despesa' && !linkedCardId && isWalletPayment(payment)){
     const walletExit = {id:'w'+Date.now(),type:'saida',desc:'['+payment+'] '+desc,amount,date:obj.date,autoFromTransaction:obj.id,createdAt:Date.now()};
     await saveDoc('wallet', walletExit.id, walletExit);
     DATA.wallet.push(walletExit);
@@ -1576,7 +1673,8 @@ function renderDashboard(){
   const instMonth = getInstallmentsForMonth(currentMonth,currentYear);
   const totalInst = instMonth.reduce((s,i)=>s+i.parcelValue,0);
 
-  const walletBalance = DATA.wallet.reduce((s,w)=>w.type==='entrada'?s+w.amount:s-w.amount,0);
+  const initialBalance = DATA.settings.initialBalance || 0;
+  const walletBalance = initialBalance + DATA.wallet.reduce((s,w)=>w.type==='entrada'?s+w.amount:(w.type==='saida'?s-w.amount:s),0);
   const saldo = totalRec - totalDesp - totalInst;
 
   // Comparativo mês anterior
@@ -2032,18 +2130,42 @@ window.saveCategory = async function(){
 // RENDER WALLET
 // ────────────────────────────────────────
 function renderWallet(){
-  const total=DATA.wallet.reduce((s,w)=>w.type==='entrada'?s+w.amount:s-w.amount,0);
+  const initialBalance = DATA.settings.initialBalance || 0;
+  const total = initialBalance + DATA.wallet.reduce((s,w)=>w.type==='entrada'?s+w.amount:s-w.amount,0);
   const entradas=DATA.wallet.filter(w=>w.type==='entrada').reduce((s,w)=>s+w.amount,0);
   const saidas=DATA.wallet.filter(w=>w.type==='saida').reduce((s,w)=>s+w.amount,0);
   document.getElementById('wallet-stats').innerHTML=`
-    <div class="stat-card blue"><div class="stat-icon">👛</div><div class="stat-label">Saldo Atual</div><div class="stat-value ${total>=0?'blue':'red'}">${fmt(total)}</div></div>
+    <div class="stat-card blue"><div class="stat-icon">👛</div><div class="stat-label">Saldo Atual</div><div class="stat-value ${total>=0?'blue':'red'}">${fmt(total)}</div>${initialBalance?`<div style="font-size:11px;color:var(--text3);margin-top:3px">Inclui saldo inicial ${fmt(initialBalance)}</div>`:''}</div>
     <div class="stat-card green"><div class="stat-icon">⬇️</div><div class="stat-label">Total Entradas</div><div class="stat-value green">${fmt(entradas)}</div></div>
     <div class="stat-card red"><div class="stat-icon">⬆️</div><div class="stat-label">Total Saídas</div><div class="stat-value red">${fmt(saidas)}</div></div>
   `;
+  const sorted=[...DATA.wallet].sort((a,b)=>a.date.localeCompare(b.date));
+  // Gráfico de evolução do saldo
+  let walletChartEl = document.getElementById('wallet-chart-card');
+  if(!walletChartEl){
+    walletChartEl = document.createElement('div');
+    walletChartEl.id='wallet-chart-card';
+    walletChartEl.className='card mt-16';
+    walletChartEl.innerHTML='<div style="font-weight:700;font-family:var(--font-head);margin-bottom:4px">📈 Evolução do Saldo</div><div class="saldo-chart-wrap"><canvas id="chart-saldo"></canvas></div>';
+    document.getElementById('page-wallet').querySelector('.card.mt-16').before(walletChartEl);
+  }
+  if(sorted.length>1){
+    let running = initialBalance;
+    const chartData = sorted.map(w=>{ running += w.type==='entrada'?w.amount:-w.amount; return {x:w.date,y:parseFloat(running.toFixed(2))}; });
+    if(window._chartSaldo) window._chartSaldo.destroy();
+    window._chartSaldo = new Chart(document.getElementById('chart-saldo'),{
+      type:'line',
+      data:{datasets:[{label:'Saldo',data:chartData,borderColor:'#38b6ff',backgroundColor:'rgba(56,182,255,.08)',fill:true,tension:.4,pointRadius:3,pointBackgroundColor:'#38b6ff'}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+        scales:{x:{type:'category',ticks:{color:'#565c76',maxTicksLimit:8},grid:{display:false}},
+          y:{ticks:{color:'#565c76',callback:v=>'R$'+v.toLocaleString('pt-BR')},grid:{color:'rgba(255,255,255,.06)'}}}}
+    });
+  }
+
+  const sortedDesc=[...sorted].reverse();
   const tbody=document.getElementById('wallet-tbody');
-  const sorted=[...DATA.wallet].sort((a,b)=>b.date.localeCompare(a.date));
-  if(!sorted.length){ tbody.innerHTML=`<tr><td colspan="4"><div class="empty-state"><div class="e-icon">👛</div><p>Nenhuma movimentação</p></div></td></tr>`; return; }
-  tbody.innerHTML=sorted.map(w=>`<tr>
+  if(!sortedDesc.length){ tbody.innerHTML=`<tr><td colspan="4"><div class="empty-state"><div class="e-icon">👛</div><p>Nenhuma movimentação</p></div></td></tr>`; return; }
+  tbody.innerHTML=sortedDesc.map(w=>`<tr>
     <td>${fmtDate(w.date)}</td>
     <td>${w.desc}</td>
     <td><span class="badge ${w.type==='entrada'?'badge-green':'badge-red'}">${w.type==='entrada'?'⬇️ Entrada':'⬆️ Saída'}</span></td>
@@ -2394,7 +2516,7 @@ async function applyRecurrentTransactions(){
       const we={id:'w'+Date.now(),type:'entrada',desc:'[Recorrente] '+copy.desc,amount:copy.amount,date:copy.date,autoFromTransaction:copy.id,createdAt:Date.now()};
       await saveDoc('wallet',we.id,we); DATA.wallet.push(we);
     }
-    if(copy.type==='despesa' && !copy.linkedCardId && WALLET_PAYMENTS.includes(copy.payment)){
+    if(copy.type==='despesa' && !copy.linkedCardId && isWalletPayment(copy.payment)){
       const wx={id:'w'+Date.now(),type:'saida',desc:'[Recorrente] '+copy.desc,amount:copy.amount,date:copy.date,autoFromTransaction:copy.id,createdAt:Date.now()};
       await saveDoc('wallet',wx.id,wx); DATA.wallet.push(wx);
     }
@@ -2621,6 +2743,193 @@ window.generateReport = function(){
   a.href=url; a.download=`relatorio-${MONTHS[month].toLowerCase()}-${y}.html`;
   a.click(); URL.revokeObjectURL(url);
   toast(`Relatório de ${MONTHS[month]} ${y} baixado!`,'success');
+};
+
+// ────────────────────────────────────────
+// CONFIGURAÇÕES
+// ────────────────────────────────────────
+function renderSettings(){
+  const u = currentUser;
+  document.getElementById('settings-user-info').innerHTML = u ? `
+    <div class="flex-row">
+      <img src="${u.photoURL||''}" style="width:48px;height:48px;border-radius:50%;border:2px solid var(--border)">
+      <div><div style="font-weight:700">${u.displayName||'Usuário'}</div><div style="font-size:12px;color:var(--text3)">${u.email}</div></div>
+    </div>` : '';
+  // Preencher saldo inicial
+  if(DATA.settings.initialBalance) document.getElementById('cfg-initial-balance').value = DATA.settings.initialBalance;
+  if(DATA.settings.initialDate) document.getElementById('cfg-initial-date').value = DATA.settings.initialDate;
+  else document.getElementById('cfg-initial-date').value = today();
+  // Transferência
+  document.getElementById('transf-date').value = today();
+  // Formas de pagamento
+  renderPaymentMethodsList();
+}
+
+function renderPaymentMethodsList(){
+  const list = document.getElementById('payment-methods-list');
+  if(!list) return;
+  list.innerHTML = CUSTOM_PAYMENT_METHODS.map((p,i)=>`
+    <div class="flex-between" style="padding:7px 10px;background:var(--bg3);border-radius:8px;margin-bottom:6px">
+      <span style="font-size:13px">💳 ${p}</span>
+      <button class="btn btn-danger btn-sm" onclick="removePaymentMethod(${i})">✕</button>
+    </div>`).join('');
+}
+
+window.addPaymentMethod = async function(){
+  const val = document.getElementById('new-payment-method').value.trim();
+  if(!val) return;
+  if(CUSTOM_PAYMENT_METHODS.includes(val)) return toast('Já existe!','error');
+  CUSTOM_PAYMENT_METHODS.push(val);
+  await saveSettingsData();
+  document.getElementById('new-payment-method').value='';
+  renderPaymentMethodsList();
+  toast('Forma de pagamento adicionada!','success');
+};
+
+window.removePaymentMethod = async function(idx){
+  CUSTOM_PAYMENT_METHODS.splice(idx,1);
+  await saveSettingsData();
+  renderPaymentMethodsList();
+  toast('Removido!','info');
+};
+
+window.saveInitialBalance = async function(){
+  const amount = parseFloat(document.getElementById('cfg-initial-balance').value)||0;
+  const date = document.getElementById('cfg-initial-date').value;
+  DATA.settings.initialBalance = amount;
+  DATA.settings.initialDate = date;
+  await saveSettingsData();
+  toast(`Saldo inicial de ${fmt(amount)} salvo!`,'success');
+  if(document.getElementById('page-wallet').classList.contains('active')) renderWallet();
+};
+
+window.saveTransfer = async function(){
+  const desc = document.getElementById('transf-desc').value.trim()||'Transferência entre contas';
+  const amount = parseFloat(document.getElementById('transf-amount').value);
+  const date = document.getElementById('transf-date').value;
+  if(!amount) return toast('Informe o valor','error');
+  // Registra como movimentação neutra (saída e entrada se cancelam, apenas histórico)
+  const obj = {id:'w'+Date.now(),type:'transferencia',desc:'[Transferência] '+desc,amount,date,createdAt:Date.now()};
+  await saveDoc('wallet',obj.id,obj);
+  DATA.wallet.push(obj);
+  document.getElementById('transf-desc').value='';
+  document.getElementById('transf-amount').value='';
+  toast('Transferência registrada!','success');
+};
+
+async function saveSettingsData(){
+  DATA.settings.paymentMethods = CUSTOM_PAYMENT_METHODS;
+  await setDoc(doc(db,'users',uid(),'config','settings'), DATA.settings, {merge:true});
+}
+
+// ────────────────────────────────────────
+// EXPORTAR CSV / EXCEL
+// ────────────────────────────────────────
+function renderExportPage(){
+  updateExportPreview();
+}
+
+function getExportTransactions(){
+  const period = document.getElementById('export-period')?.value || 'month';
+  const now = new Date();
+  return DATA.transactions.filter(t=>{
+    if(!t.date) return false;
+    const d = new Date(t.date+'T12:00:00');
+    if(period==='month') return d.getMonth()===currentMonth && d.getFullYear()===currentYear;
+    if(period==='3months'){const past=new Date(now);past.setMonth(past.getMonth()-3);return d>=past;}
+    if(period==='6months'){const past=new Date(now);past.setMonth(past.getMonth()-6);return d>=past;}
+    if(period==='year') return d.getFullYear()===currentYear;
+    return true; // all
+  });
+}
+
+function updateExportPreview(){
+  const txs = getExportTransactions();
+  const preview = document.getElementById('export-preview');
+  if(!preview) return;
+  const totalRec = txs.filter(t=>t.type==='receita').reduce((s,t)=>s+t.amount,0);
+  const totalDesp = txs.filter(t=>t.type==='despesa').reduce((s,t)=>s+t.amount,0);
+  preview.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div style="background:var(--bg3);border-radius:10px;padding:14px">
+        <div style="font-weight:700;margin-bottom:8px">📋 Resumo da exportação</div>
+        <div style="font-size:13px;display:flex;flex-direction:column;gap:5px">
+          <div>📊 <strong>${txs.length}</strong> transações</div>
+          <div style="color:var(--green)">💰 Receitas: <strong>${fmt(totalRec)}</strong></div>
+          <div style="color:var(--red)">💸 Despesas: <strong>${fmt(totalDesp)}</strong></div>
+          <div>📅 Período: <strong>${document.getElementById('export-period')?.options[document.getElementById('export-period')?.selectedIndex]?.text||''}</strong></div>
+        </div>
+      </div>
+      <div style="font-size:12px;color:var(--text3)">O arquivo CSV pode ser aberto no Excel, Google Sheets ou Numbers diretamente.</div>
+    </div>`;
+}
+
+window.exportCSV = function(){
+  const txs = getExportTransactions();
+  const incInst = document.getElementById('exp-installments')?.checked;
+  const period = document.getElementById('export-period')?.value || 'month';
+
+  const headers = ['Data','Descricao','Tipo','Categoria','Pagamento','Necessidade','Natureza','Recorrente','Valor','Observacao'];
+  const rows = [headers];
+
+  if(document.getElementById('exp-transactions')?.checked){
+    txs.sort((a,b)=>b.date.localeCompare(a.date)).forEach(function(t){
+      const cat = getCat(t.category);
+      const necMap = {necessario:'Necessario',eventual:'Eventual',nao_necessario:'Nao Necessario'};
+      const natMap = {fixo:'Fixo',variavel:'Variavel'};
+      rows.push([
+        fmtDate(t.date),
+        t.desc,
+        t.type==='receita'?'Receita':'Despesa',
+        cat.name,
+        t.payment||'-',
+        necMap[t.necessity]||'-',
+        natMap[t.nature]||'-',
+        t.recurrent==='sim'?'Sim':'Nao',
+        (t.type==='receita'?'+':'-')+t.amount.toFixed(2).replace('.',','),
+        t.note||''
+      ]);
+    });
+  }
+
+  if(incInst && DATA.installments.length){
+    rows.push(['']);
+    rows.push(['PARCELAMENTOS']);
+    rows.push(['Descricao','Data Compra','Cartao','Total','Parcelas','Valor por Parcela','1a Parcela']);
+    DATA.installments.forEach(function(i){
+      const card = DATA.cards.find(function(c){return c.id===i.cardId;});
+      rows.push([
+        i.desc,
+        fmtDate(i.purchaseDate),
+        card?card.name:'-',
+        i.total.toFixed(2).replace('.',','),
+        String(i.parcels),
+        i.parcelValue.toFixed(2).replace('.',','),
+        i.firstMonth
+      ]);
+    });
+  }
+
+  function escapeCell(val){
+    const s = String(val||'');
+    const needsQuote = s.indexOf(';')>=0 || s.indexOf('"')>=0 || s.indexOf(String.fromCharCode(10))>=0;
+    if(needsQuote){
+      return '"' + s.replace(/"/g,'""') + '"';
+    }
+    return s;
+  }
+
+    const lines = rows.map(function(r){ return r.map(escapeCell).join(';'); });
+  const csvText = lines.join('\r\n');
+  const BOM = '﻿';
+  const blob = new Blob([BOM + csvText], {type:'text/csv;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'financaspro-' + period + '-' + new Date().toISOString().split('T')[0] + '.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+  toast(txs.length + ' transacoes exportadas!','success');
 };
 
 // ── FILTROS LISTENERS (mais confiável que oninput inline) ──
