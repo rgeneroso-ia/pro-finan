@@ -130,11 +130,11 @@ tr:hover td{background:rgba(255,255,255,.02);}
 
 /* ── BADGES ── */
 .badge{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600;}
-.badge-green{background:rgba(34,211,160,.12);color:var(--green);}
-.badge-red{background:rgba(255,92,122,.12);color:var(--red);}
-.badge-yellow{background:rgba(245,200,66,.12);color:var(--yellow);}
-.badge-blue{background:rgba(56,182,255,.12);color:var(--blue);}
-.badge-orange{background:rgba(255,140,66,.12);color:var(--orange);}
+.badge-green{background:rgba(93,191,138,.1);color:#6EC994;}
+.badge-red{background:rgba(224,107,107,.1);color:#E08080;}
+.badge-yellow{background:rgba(232,195,85,.1);color:#C9A94A;}
+.badge-blue{background:rgba(90,158,196,.1);color:#7AAECC;}
+.badge-orange{background:rgba(212,131,74,.1);color:#C48A5A;}
 .badge-purple{background:rgba(212,151,58,.15);color:var(--accent2);}
 .badge-gray{background:rgba(139,144,167,.12);color:var(--text2);}
 
@@ -1400,6 +1400,16 @@ function getMonthTransactions(){
   });
 }
 
+window.cancelRecurrent = async function(id){
+  const t = DATA.transactions.find(x=>x.id===id);
+  if(!t) return;
+  if(!confirm(`Cancelar recorrência de "${t.desc}"? O lançamento atual é mantido, mas não vai mais repetir nos próximos meses.`)) return;
+  t.recurrent = '';
+  await saveDoc('transactions', id, t);
+  renderTransactions();
+  toast('Recorrência cancelada. O lançamento foi mantido.','info');
+};
+
 window.deleteTransaction = async function(id){
   if(!confirm('Remover transação?')) return;
   await deleteDocById('transactions',id);
@@ -1656,8 +1666,8 @@ function fmtDate(s){ if(!s) return '-'; const [y,m,d]=s.split('-'); return `${d}
 function getCat(id){ return DATA.categories.find(c=>c.id===id)||{name:'?',emoji:'📦',color:'#565c76'}; }
 function getCard(id){ return DATA.cards.find(c=>c.id===id)||null; }
 
-const NECESSITY_LABELS = {necessario:{label:'Necessário',cls:'badge-green'},eventual:{label:'Eventual',cls:'badge-yellow'},nao_necessario:{label:'Não Necessário',cls:'badge-red'}};
-const NATURE_LABELS = {fixo:{label:'Fixo',cls:'badge-blue'},variavel:{label:'Variável',cls:'badge-orange'}};
+const NECESSITY_LABELS = {necessario:{label:'Necessário',cls:'badge-gray'},eventual:{label:'Eventual',cls:'badge-yellow'},nao_necessario:{label:'Não Necessário',cls:'badge-red'}};
+const NATURE_LABELS = {fixo:{label:'Fixo',cls:'badge-gray'},variavel:{label:'Variável',cls:'badge-gray'}};
 const INV_TYPE_LABELS = {renda_fixa:'Renda Fixa',acao:'Ação',fii:'FII',etf:'ETF',cripto:'Cripto',outro:'Outro'};
 
 // ────────────────────────────────────────
@@ -1737,6 +1747,95 @@ function renderDashboard(){
 
   renderCharts(monthTx, instMonth);
   renderDueAlerts();
+  renderBudgetAlerts(monthTx);
+  renderProjection(monthTx, totalRec, totalDesp, totalInst);
+}
+
+function renderProjection(monthTx, totalRec, totalDesp, totalInst){
+  const now = new Date();
+  const daysInMonth = new Date(currentYear, currentMonth+1, 0).getDate();
+  const daysPassed = currentMonth===now.getMonth()&&currentYear===now.getFullYear() ? now.getDate() : daysInMonth;
+  if(daysPassed < 3 || daysPassed >= daysInMonth) return; // sem dados suficientes ou mês fechado
+
+  const totalExp = totalDesp + totalInst;
+  const dailyExp = totalExp / daysPassed;
+  const projectedExp = dailyExp * daysInMonth;
+  const projectedSaldo = totalRec - projectedExp;
+  const daysLeft = daysInMonth - daysPassed;
+
+  let projEl = document.getElementById('dash-projection');
+  if(!projEl){
+    projEl = document.createElement('div');
+    projEl.id = 'dash-projection';
+    projEl.style.marginBottom = '16px';
+    const budgetEl = document.getElementById('dash-budget-alerts');
+    const statsEl = document.getElementById('dash-stats');
+    const after = budgetEl || statsEl;
+    after.parentNode.insertBefore(projEl, after.nextSibling);
+  }
+
+  const trend = projectedSaldo >= 0 ? 'positivo' : 'negativo';
+  const color = projectedSaldo >= 0 ? 'var(--green)' : 'var(--red)';
+  const icon = projectedSaldo >= 0 ? '📈' : '📉';
+
+  projEl.innerHTML = `
+    <div style="background:var(--bg2);border:1px solid var(--border);border-left:3px solid ${color};border-radius:12px;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:20px">${icon}</span>
+        <div>
+          <div style="font-size:12px;font-weight:600;color:var(--text2);letter-spacing:.5px;text-transform:uppercase">Projeção do mês</div>
+          <div style="font-size:13px;color:var(--text3);margin-top:2px">
+            Dia ${daysPassed} de ${daysInMonth} · ${daysLeft} dias restantes · Média de ${fmt(dailyExp)}/dia em gastos
+          </div>
+        </div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:11px;color:var(--text3)">Se continuar assim, fecha em</div>
+        <div style="font-family:var(--font-head);font-size:22px;font-weight:300;font-style:italic;color:${color};letter-spacing:-1px">${fmt(projectedSaldo)}</div>
+        <div style="font-size:11px;color:var(--text3)">Despesas projetadas: ${fmt(projectedExp)}</div>
+      </div>
+    </div>`;
+}
+
+function renderBudgetAlerts(monthTx){
+  const overBudget = DATA.categories.filter(cat=>{
+    if(!cat.budget) return false;
+    const spent = monthTx.filter(t=>t.type==='despesa'&&t.category===cat.id).reduce((s,t)=>s+t.amount,0);
+    return spent >= cat.budget * 0.8; // alerta a partir de 80%
+  }).map(cat=>{
+    const spent = monthTx.filter(t=>t.type==='despesa'&&t.category===cat.id).reduce((s,t)=>s+t.amount,0);
+    const pct = Math.round(spent/cat.budget*100);
+    const over = spent >= cat.budget;
+    return {cat, spent, pct, over};
+  });
+
+  let alertEl = document.getElementById('dash-budget-alerts');
+  if(!alertEl){
+    alertEl = document.createElement('div');
+    alertEl.id = 'dash-budget-alerts';
+    const dashAlerts = document.getElementById('dash-alerts');
+    if(dashAlerts) dashAlerts.after(alertEl);
+    else {
+      const statsEl = document.getElementById('dash-stats');
+      statsEl.parentNode.insertBefore(alertEl, statsEl.nextSibling);
+    }
+  }
+  if(!overBudget.length){ alertEl.innerHTML=''; return; }
+  alertEl.innerHTML = `<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">
+    ${overBudget.map(({cat,spent,pct,over})=>`
+    <div style="background:${over?'rgba(224,107,107,.06)':'rgba(232,195,85,.06)'};border:1px solid ${over?'rgba(224,107,107,.3)':'rgba(232,195,85,.25)'};border-radius:10px;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:18px">${cat.emoji}</span>
+        <div>
+          <div style="font-size:13px;font-weight:600;color:${over?'var(--red)':'var(--yellow)'}">${over?'🔴 Orçamento estourado':'⚠️ Orçamento no limite'} — ${cat.name}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px">${fmt(spent)} de ${fmt(cat.budget)} (${pct}% usado)</div>
+        </div>
+      </div>
+      <div style="font-family:var(--font-head);font-size:16px;font-weight:300;font-style:italic;color:${over?'var(--red)':'var(--yellow)'}">
+        ${over?'−'+fmt(spent-cat.budget):'ok'}
+      </div>
+    </div>`).join('')}
+  </div>`;
 }
 
 function renderDueAlerts(){
@@ -1801,18 +1900,36 @@ function renderCharts(monthTx, instMonth){
     const insts = getInstallmentsForMonth(m,y).reduce((s,i)=>s+i.parcelValue,0);
     expData.push(txs.filter(t=>t.type==='despesa').reduce((s,t)=>s+t.amount,0)+insts);
   }
+  // Paleta quente para os gráficos
+  const CHART_COLORS = {
+    rec: 'rgba(93,191,138,.75)',
+    recBorder: 'rgba(93,191,138,1)',
+    exp: 'rgba(224,107,107,.75)',
+    expBorder: 'rgba(224,107,107,1)',
+    tickColor: '#5C5448',
+    gridColor: 'rgba(240,232,216,.04)',
+    legendColor: '#9A8E7A',
+  };
+  const chartFont = {family:"'DM Sans', sans-serif", size:11};
+
   if(chartRevExp) chartRevExp.destroy();
   chartRevExp = new Chart(document.getElementById('chart-rev-exp'),{
     type:'bar',
     data:{labels,datasets:[
-      {label:'Receita',data:revData,backgroundColor:'rgba(34,211,160,.7)',borderRadius:6},
-      {label:'Despesa',data:expData,backgroundColor:'rgba(255,92,122,.7)',borderRadius:6}
+      {label:'Receita',data:revData,backgroundColor:CHART_COLORS.rec,borderColor:CHART_COLORS.recBorder,borderWidth:1,borderRadius:5,borderSkipped:false},
+      {label:'Despesa',data:expData,backgroundColor:CHART_COLORS.exp,borderColor:CHART_COLORS.expBorder,borderWidth:1,borderRadius:5,borderSkipped:false}
     ]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#8b90a7',font:{size:11}}}},
-      scales:{x:{ticks:{color:'#565c76'},grid:{color:'rgba(255,255,255,.04)'}},y:{ticks:{color:'#565c76',callback:v=>'R$'+v.toLocaleString('pt-BR')},grid:{color:'rgba(255,255,255,.06)'}}}}
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:CHART_COLORS.legendColor,font:chartFont,boxWidth:10,boxHeight:10,borderRadius:3,useBorderRadius:true}}},
+      scales:{
+        x:{ticks:{color:CHART_COLORS.tickColor,font:chartFont},grid:{color:CHART_COLORS.gridColor},border:{display:false}},
+        y:{ticks:{color:CHART_COLORS.tickColor,font:chartFont,callback:v=>'R$'+v.toLocaleString('pt-BR')},grid:{color:CHART_COLORS.gridColor},border:{display:false}}
+      }
+    }
   });
 
-  // Expenses by category
+  // Expenses by category — paleta das próprias categorias mas mais suave
   const catMap={};
   monthTx.filter(t=>t.type==='despesa').forEach(t=>{ catMap[t.category]=(catMap[t.category]||0)+t.amount; });
   instMonth.forEach(i=>{ catMap[i.categoryId]=(catMap[i.categoryId]||0)+i.parcelValue; });
@@ -1823,9 +1940,18 @@ function renderCharts(monthTx, instMonth){
       type:'doughnut',
       data:{
         labels:catEntries.map(([id])=>{ const c=getCat(id); return c.emoji+' '+c.name; }),
-        datasets:[{data:catEntries.map(([,v])=>v),backgroundColor:catEntries.map(([id])=>getCat(id).color+'cc'),borderWidth:0,hoverOffset:6}]
+        datasets:[{
+          data:catEntries.map(([,v])=>v),
+          backgroundColor:catEntries.map(([id])=>getCat(id).color+'bb'),
+          borderColor:catEntries.map(([id])=>getCat(id).color+'44'),
+          borderWidth:2,
+          hoverOffset:8
+        }]
       },
-      options:{responsive:true,maintainAspectRatio:false,cutout:'65%',plugins:{legend:{position:'right',labels:{color:'#8b90a7',font:{size:11},boxWidth:12}}}}
+      options:{
+        responsive:true,maintainAspectRatio:false,cutout:'68%',
+        plugins:{legend:{position:'right',labels:{color:CHART_COLORS.legendColor,font:chartFont,boxWidth:10,boxHeight:10,borderRadius:3,useBorderRadius:true,padding:10}}}
+      }
     });
   }
 }
@@ -1910,6 +2036,7 @@ function renderTransactions(){
       <td>
         <div class="flex-row" style="gap:5px">
           <button class="btn btn-ghost btn-sm" onclick="editTransaction('${t.id}')" title="Editar">✏️</button>
+          ${t.recurrent==='sim'?`<button class="btn btn-ghost btn-sm" onclick="cancelRecurrent('${t.id}')" title="Cancelar recorrência" style="color:var(--yellow)">🔁</button>`:''}
           <button class="btn btn-danger btn-sm" onclick="deleteTransaction('${t.id}')" title="Excluir">✕</button>
         </div>
       </td>
@@ -2155,10 +2282,13 @@ function renderWallet(){
     if(window._chartSaldo) window._chartSaldo.destroy();
     window._chartSaldo = new Chart(document.getElementById('chart-saldo'),{
       type:'line',
-      data:{datasets:[{label:'Saldo',data:chartData,borderColor:'#38b6ff',backgroundColor:'rgba(56,182,255,.08)',fill:true,tension:.4,pointRadius:3,pointBackgroundColor:'#38b6ff'}]},
+      data:{datasets:[{label:'Saldo',data:chartData,borderColor:'#D4973A',backgroundColor:'rgba(212,151,58,.08)',fill:true,tension:.4,pointRadius:3,pointBackgroundColor:'#D4973A',pointBorderColor:'#1C1916',pointBorderWidth:2}]},
       options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
-        scales:{x:{type:'category',ticks:{color:'#565c76',maxTicksLimit:8},grid:{display:false}},
-          y:{ticks:{color:'#565c76',callback:v=>'R$'+v.toLocaleString('pt-BR')},grid:{color:'rgba(255,255,255,.06)'}}}}
+        scales:{
+          x:{type:'category',ticks:{color:'#5C5448',font:{size:11},maxTicksLimit:8},grid:{display:false},border:{display:false}},
+          y:{ticks:{color:'#5C5448',font:{size:11},callback:v=>'R$'+v.toLocaleString('pt-BR')},grid:{color:'rgba(240,232,216,.04)'},border:{display:false}}
+        }
+      }
     });
   }
 
@@ -2611,11 +2741,16 @@ function renderAnnual(){
   window._chartAnnual = new Chart(document.getElementById('chart-annual'),{
     type:'bar',
     data:{labels:chartLabels,datasets:[
-      {label:'Receita',data:chartRec,backgroundColor:'rgba(34,211,160,.7)',borderRadius:5},
-      {label:'Despesa',data:chartDesp,backgroundColor:'rgba(255,92,122,.7)',borderRadius:5}
+      {label:'Receita',data:chartRec,backgroundColor:'rgba(93,191,138,.75)',borderColor:'rgba(93,191,138,1)',borderWidth:1,borderRadius:5,borderSkipped:false},
+      {label:'Despesa',data:chartDesp,backgroundColor:'rgba(224,107,107,.75)',borderColor:'rgba(224,107,107,1)',borderWidth:1,borderRadius:5,borderSkipped:false}
     ]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#8b90a7',font:{size:11}}}},
-      scales:{x:{ticks:{color:'#565c76'},grid:{color:'rgba(255,255,255,.04)'}},y:{ticks:{color:'#565c76',callback:v=>'R$'+v.toLocaleString('pt-BR')},grid:{color:'rgba(255,255,255,.06)'}}}}
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:'#9A8E7A',font:{family:"'DM Sans',sans-serif",size:11},boxWidth:10,boxHeight:10,borderRadius:3,useBorderRadius:true}}},
+      scales:{
+        x:{ticks:{color:'#5C5448',font:{size:11}},grid:{color:'rgba(240,232,216,.04)'},border:{display:false}},
+        y:{ticks:{color:'#5C5448',font:{size:11},callback:v=>'R$'+v.toLocaleString('pt-BR')},grid:{color:'rgba(240,232,216,.04)'},border:{display:false}}
+      }
+    }
   });
 
   // Top categorias
