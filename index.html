@@ -481,7 +481,7 @@ input,select,textarea{font-family:var(--font);}
         <div class="g2">
           <div class="card">
             <div class="ctitle">📆 Resumo Anual</div>
-            <div class="fg"><label>Ano</label><select id="annual-year" onchange="renderAnnual()" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:9px 12px;border-radius:var(--radius-sm);font-size:13px"></select></div>
+            <div class="fg"><label>Ano</label><select id="annual-year" onchange="window.renderAnnual()" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:9px 12px;border-radius:var(--radius-sm);font-size:13px"></select></div>
             <div class="g2 mt-14" id="annual-stats-cards"></div>
             <div class="ch-lg mt-14"><canvas id="ch-annual"></canvas></div>
           </div>
@@ -2156,6 +2156,11 @@ function rPMList(){
   const list=document.getElementById('pm-list'); if(!list)return;
   list.innerHTML=CPM.map((p,i)=>`<div class="flex-b" style="padding:6px 10px;background:var(--bg2);border-radius:6px;margin-bottom:5px"><span style="font-size:13px">${p}</span><button class="btn btn-danger btn-xs" onclick="removePM(${i})">✕</button></div>`).join('');
 }
+
+// ── WIRE NAV ITEMS ──
+document.querySelectorAll('.nav-item[data-page]').forEach(btn => {
+  btn.onclick = () => nav(btn.dataset.page);
+});
 
 // ── INIT ──
 document.getElementById('dash-sub').textContent=`${MOS[CM]} ${CY}`;
