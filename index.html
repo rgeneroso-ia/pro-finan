@@ -807,8 +807,17 @@ async function loadAll(){
     loadCol('cats'),loadCol('wallet'),loadCol('metas'),loadCol('dividas'),
     loadCol('gen'),loadCol('inv'),loadCol('alocs')
   ]);
-  D.lancs=l; D.assins=a; D.parcs=p; D.cartoes=c;
-  D.wallet=w; D.metas=m; D.dividas=div; D.gen=gen; D.inv=inv; D.alocs=alocs;
+  // Normaliza todos os dados para suportar formato antigo (FinançasPro) e novo (GG)
+  D.lancs   = l.map(normalizeLanc);
+  D.assins  = a;
+  D.parcs   = p.map(normalizeParc);
+  D.cartoes = c.map(normalizeCard);
+  D.wallet  = w.map(normalizeWallet);
+  D.metas   = m.map(normalizeMeta);
+  D.dividas = div.map(normalizeDivida);
+  D.gen     = gen;
+  D.inv     = inv.map(normalizeInv);
+  D.alocs   = alocs.map(normalizeAlloc);
   try{
     const cfg=await getDoc(doc(db,'users',uid(),'config','main'));
     if(cfg.exists()){D.cfg=cfg.data();if(D.cfg.pm)CPM=D.cfg.pm;}
@@ -898,17 +907,101 @@ async function applyRecurrent(){
     const copy={...orig, id:'l'+Date.now()+Math.random().toString(36).slice(2,5),
       date:nd, recOrigin:orig.id, _status:newStatus, createdAt:Date.now()};
     await saveD('lancs',copy.id,copy);
-    D.lancs.push(copy);
+    D.lancs.push(normalizeLanc(copy));
     // Efeitos colaterais
     if(copy.type==='receita'){
-      const we={id:'w'+Date.now(),type:'entrada',desc:'[Rec.] '+copy.desc,valor:copy.valor,date:copy.date,fromLanc:copy.id,createdAt:Date.now()};
-      await saveD('wallet',we.id,we); D.wallet.push(we);
+      const we={id:'w'+Date.now(),type:'entrada',desc:'[Rec.] '+copy.desc,valor:copy.valor,amount:copy.valor,date:copy.date,fromLanc:copy.id,createdAt:Date.now()};
+      await saveD('wallet',we.id,we); D.wallet.push(normalizeWallet(we));
     }
     if(copy.type==='despesa'&&!copy.linkedCardId&&isWalletPay(copy.pagamento)){
-      const wx={id:'w'+Date.now(),type:'saida',desc:'[Rec.] '+copy.desc,valor:copy.valor,date:copy.date,fromLanc:copy.id,createdAt:Date.now()};
-      await saveD('wallet',wx.id,wx); D.wallet.push(wx);
+      const wx={id:'w'+Date.now(),type:'saida',desc:'[Rec.] '+copy.desc,valor:copy.valor,amount:copy.valor,date:copy.date,fromLanc:copy.id,createdAt:Date.now()};
+      await saveD('wallet',wx.id,wx); D.wallet.push(normalizeWallet(wx));
     }
   }
+}
+
+// ── NORMALIZAÇÃO — compatibilidade com dados do FinançasPro ──
+// Lê tanto o formato antigo (amount/category/payment) quanto o novo (valor/cat/pagamento)
+function normalizeLanc(l){
+  return {
+    ...l,
+    valor:      l.valor      ?? l.amount      ?? 0,
+    cat:        l.cat        ?? l.category    ?? '',
+    pagamento:  l.pagamento  ?? l.payment     ?? '',
+    necessidade:l.necessidade?? l.necessity   ?? 'necessario',
+    natureza:   l.natureza   ?? l.nature      ?? 'fixo',
+    obs:        l.obs        ?? l.note        ?? '',
+    recorrente: l.recorrente ?? (l.recurrent==='sim'?'mensal':'') ?? '',
+    linkedCardId: l.linkedCardId ?? null,
+    _status:    l._status    ?? null,
+  };
+}
+function normalizeWallet(w){
+  return {
+    ...w,
+    valor: w.valor ?? w.amount ?? 0,
+  };
+}
+function normalizeInv(i){
+  return {
+    ...i,
+    val:  i.val  ?? i.value    ?? 0,
+    pm:   i.pm   ?? i.avgPrice ?? 0,
+    qty:  i.qty  ?? 0,
+    nome: i.nome ?? i.name     ?? '',
+    tipo: i.tipo ?? i.type     ?? 'outro',
+    upd:  i.upd  ?? i.updatedAt?? '',
+  };
+}
+function normalizeParc(p){
+  return {
+    ...p,
+    parcelVal:    p.parcelVal    ?? p.parcelValue ?? 0,
+    cartaoId:     p.cartaoId     ?? p.cardId      ?? '',
+    catId:        p.catId        ?? p.categoryId  ?? '',
+    num:          p.num          ?? p.parcels      ?? 0,
+    purchaseDate: p.purchaseDate ?? '',
+    firstMonth:   p.firstMonth   ?? '',
+  };
+}
+function normalizeDivida(d){
+  return {
+    ...d,
+    nome:  d.nome  ?? d.name  ?? '',
+    pago:  d.pago  ?? d.paid  ?? 0,
+    total: d.total ?? 0,
+    interestHist: (d.interestHist ?? d.interestHistory ?? []).map(i=>({
+      ...i, valor: i.valor ?? i.amount ?? 0
+    })),
+  };
+}
+function normalizeAlloc(a){
+  return {
+    ...a,
+    valor:     a.valor     ?? a.amount    ?? 0,
+    remaining: a.remaining ?? a.valor     ?? a.amount ?? 0,
+    type:      a.type      ?? '',
+  };
+}
+function normalizeMeta(g){
+  return {
+    ...g,
+    nome:  g.nome  ?? g.name   ?? '',
+    emoji: g.emoji ?? '🎯',
+    alvo:  g.alvo  ?? g.target ?? 0,
+    atual: g.atual ?? g.current?? 0,
+    prazo: g.prazo ?? g.deadline ?? '',
+  };
+}
+function normalizeCard(c){
+  return {
+    ...c,
+    name:     c.name     ?? '',
+    closeDay: c.closeDay ?? 18,
+    dueDay:   c.dueDay   ?? 25,
+    limit:    c.limit    ?? 0,
+    color:    c.color    ?? '#0071e3',
+  };
 }
 
 // ── HELPERS ──
@@ -1080,6 +1173,7 @@ window.saveLanc=async function(){
 
   const obj={
     id:editId||'l'+Date.now(),
+    // Campos GG (novos)
     type, date:document.getElementById('l-date').value,
     desc, valor, cat:document.getElementById('l-cat').value,
     pagamento, linkedCardId,
@@ -1088,6 +1182,14 @@ window.saveLanc=async function(){
     _status: editId ? (D.lancs.find(l=>l.id===editId)?._status||autoSt) : autoSt,
     recorrente:document.getElementById('l-rec').value,
     obs:document.getElementById('l-obs').value,
+    // Campos FP (retrocompatibilidade com dados antigos no Firebase)
+    amount: valor,
+    category: document.getElementById('l-cat').value,
+    payment: pagamento,
+    necessity: document.getElementById('l-nec').value,
+    nature: document.getElementById('l-nat').value,
+    note: document.getElementById('l-obs').value,
+    recurrent: document.getElementById('l-rec').value === 'mensal' ? 'sim' : '',
     createdAt: editId?(D.lancs.find(l=>l.id===editId)?.createdAt||Date.now()):Date.now()
   };
 
@@ -1096,7 +1198,7 @@ window.saveLanc=async function(){
     const idx=D.lancs.findIndex(l=>l.id===editId);
     if(idx>-1) D.lancs[idx]=obj;
   } else {
-    D.lancs.push(obj);
+    D.lancs.push(normalizeLanc(obj));
     // Receita → entra na carteira
     if(type==='receita'){
       const we={id:'w'+Date.now(),type:'entrada',desc:'[Receita] '+desc,valor,date:obj.date,fromLanc:obj.id,createdAt:Date.now()};
@@ -1192,7 +1294,7 @@ window.saveParc=async function(){
   const num=parseInt(document.getElementById('p-num').value);
   if(!desc||!total||!num) return toast('Preencha todos os campos','error');
   const obj={id:'p'+Date.now(),desc,total,num,parcelVal:total/num,purchaseDate:document.getElementById('p-data').value,cartaoId:document.getElementById('p-cartao').value,catId:document.getElementById('p-cat').value,firstMonth:document.getElementById('p-first').value,createdAt:Date.now()};
-  await saveD('parcs',obj.id,obj); D.parcs.push(obj);
+  await saveD('parcs',obj.id,obj); D.parcs.push(normalizeParc(obj));
   closeM('modal-parc');
   ['p-desc','p-total','p-num'].forEach(id=>document.getElementById(id).value='');
   renderAll(); toast('Parcelamento salvo! Aparece automaticamente nos meses.');
@@ -1208,7 +1310,7 @@ window.saveCartao=async function(){
   const name=document.getElementById('c-nome').value.trim();
   if(!name) return toast('Informe o nome','error');
   const obj={id:'c'+Date.now(),name,closeDay:parseInt(document.getElementById('c-fecha').value)||18,dueDay:parseInt(document.getElementById('c-vence').value)||25,limit:parseFloat(document.getElementById('c-lim').value)||0,color:document.getElementById('c-cor').value,createdAt:Date.now()};
-  await saveD('cartoes',obj.id,obj); D.cartoes.push(obj);
+  await saveD('cartoes',obj.id,obj); D.cartoes.push(normalizeCard(obj));
   closeM('modal-cartao'); document.getElementById('c-nome').value='';
   renderAll(); toast('Cartão adicionado!');
 };
@@ -1223,8 +1325,8 @@ window.saveEntrada=async function(){
   const desc=document.getElementById('e-desc').value.trim();
   const val=parseFloat(document.getElementById('e-val').value);
   if(!desc||!val) return toast('Preencha todos os campos','error');
-  const obj={id:'w'+Date.now(),type:'entrada',desc,valor:val,date:document.getElementById('e-date').value,createdAt:Date.now()};
-  await saveD('wallet',obj.id,obj); D.wallet.push(obj);
+  const obj={id:'w'+Date.now(),type:'entrada',desc,valor:val,amount:val,date:document.getElementById('e-date').value,createdAt:Date.now()};
+  await saveD('wallet',obj.id,obj); D.wallet.push(normalizeWallet(obj));
   closeM('modal-entrada');
   ['e-desc','e-val'].forEach(id=>document.getElementById(id).value='');
   rContas(); rDash(); toast('Entrada registrada!');
@@ -1233,8 +1335,8 @@ window.saveSaida=async function(){
   const desc=document.getElementById('s-desc').value.trim();
   const val=parseFloat(document.getElementById('s-val').value);
   if(!desc||!val) return toast('Preencha todos os campos','error');
-  const obj={id:'w'+Date.now(),type:'saida',desc,valor:val,date:document.getElementById('s-date').value,createdAt:Date.now()};
-  await saveD('wallet',obj.id,obj); D.wallet.push(obj);
+  const obj={id:'w'+Date.now(),type:'saida',desc,valor:val,amount:val,date:document.getElementById('s-date').value,createdAt:Date.now()};
+  await saveD('wallet',obj.id,obj); D.wallet.push(normalizeWallet(obj));
   closeM('modal-saida');
   ['s-desc','s-val'].forEach(id=>document.getElementById(id).value='');
   rContas(); rDash(); toast('Saída registrada!');
@@ -1252,8 +1354,8 @@ window.payInvoice=async function(cardId,total){
   const mLabel=`${MOS[CM]}/${CY}`;
   if(!confirm(`Pagar fatura do ${card.name} de ${fmt(total)} — ${mLabel}?\nSerá debitado do saldo.`))return;
   const ik=invKey(cardId,CM,CY);
-  const obj={id:'w'+Date.now(),type:'saida',desc:`[Fatura] ${card.name} — ${mLabel}`,valor:total,date:today(),invoiceKey:ik,invoiceCardId:cardId,createdAt:Date.now()};
-  await saveD('wallet',obj.id,obj); D.wallet.push(obj);
+  const obj={id:'w'+Date.now(),type:'saida',desc:`[Fatura] ${card.name} — ${mLabel}`,valor:total,amount:total,date:today(),invoiceKey:ik,invoiceCardId:cardId,createdAt:Date.now()};
+  await saveD('wallet',obj.id,obj); D.wallet.push(normalizeWallet(obj));
   // Marca _status='pago' em todos os lançamentos do cartão daquele mês
   const monthLancs=D.lancs.filter(l=>{
     if(!l.linkedCardId||l.linkedCardId!==cardId) return false;
@@ -1292,7 +1394,7 @@ window.saveMeta=async function(){
   const alvo=parseFloat(document.getElementById('g-alvo').value);
   if(!nome||!alvo) return toast('Preencha nome e valor alvo','error');
   const obj={id:'g'+Date.now(),nome,emoji:document.getElementById('g-emoji').value||'🎯',alvo,atual:parseFloat(document.getElementById('g-atual').value)||0,prazo:document.getElementById('g-prazo').value,createdAt:Date.now()};
-  await saveD('metas',obj.id,obj); D.metas.push(obj);
+  await saveD('metas',obj.id,obj); D.metas.push(normalizeMeta(obj));
   closeM('modal-meta');
   ['g-nome','g-alvo'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('g-atual').value='0';
@@ -1317,7 +1419,7 @@ window.saveDivida=async function(){
   const total=parseFloat(document.getElementById('d-total').value);
   if(!nome||!total) return toast('Preencha nome e valor','error');
   const obj={id:'d'+Date.now(),nome,emoji:document.getElementById('d-emoji').value||'💳',credor:document.getElementById('d-credor').value.trim(),total,juros:parseFloat(document.getElementById('d-juros').value)||0,pago:parseFloat(document.getElementById('d-pago').value)||0,vence:document.getElementById('d-vence').value,interestHist:[],createdAt:Date.now()};
-  await saveD('dividas',obj.id,obj); D.dividas.push(obj);
+  await saveD('dividas',obj.id,obj); D.dividas.push(normalizeDivida(obj));
   closeM('modal-divida');
   ['d-nome','d-total','d-pago','d-credor','d-juros'].forEach(id=>document.getElementById(id).value='');
   rDividas(); toast('Dívida cadastrada!');
@@ -1384,7 +1486,7 @@ window.saveInv=async function(){
     closeM('modal-inv'); rInv(); toast('Atualizado!');
   } else {
     const obj={id:'i'+Date.now(),nome,tipo:document.getElementById('i-tipo').value,qty,pm,val,upd:document.getElementById('i-upd').value,createdAt:Date.now()};
-    await saveD('inv',obj.id,obj); D.inv.push(obj);
+    await saveD('inv',obj.id,obj); D.inv.push(normalizeInv(obj));
     closeM('modal-inv'); rInv(); toast('Ativo adicionado!');
   }
   ['i-nome','i-qty','i-pm','i-total'].forEach(id=>document.getElementById(id).value='');
@@ -1478,7 +1580,7 @@ window.saveTransf=async function(){
   const val=parseFloat(document.getElementById('transf-val').value);
   if(!val) return toast('Informe o valor','error');
   const obj={id:'w'+Date.now(),type:'transferencia',desc:'[Transf.] '+desc,valor:val,date:document.getElementById('transf-date').value,createdAt:Date.now()};
-  await saveD('wallet',obj.id,obj); D.wallet.push(obj);
+  await saveD('wallet',obj.id,obj); D.wallet.push(normalizeWallet(obj));
   ['transf-desc','transf-val'].forEach(id=>document.getElementById(id).value='');
   toast('Transferência registrada!');
 };
@@ -1526,7 +1628,8 @@ function rDash(){
   const totalInst=instM.reduce((s,i)=>s+i.parcelVal,0);
   const saldo=totalRec-totalDesp-totalInst;
   const si=D.cfg.saldoInicial||0;
-  const walletBal=si+D.wallet.reduce((s,w)=>w.type==='entrada'?s+w.valor:(w.type==='saida'?s-w.valor:s),0);
+  const _wv=w=>(w.valor??w.amount??0);
+  const walletBal=si+D.wallet.reduce((s,w)=>w.type==='entrada'?s+_wv(w):(w.type==='saida'?s-_wv(w):s),0);
 
   // Comparativo
   let pm=CM-1,py=CY; if(pm<0){pm=11;py--;}
@@ -1819,9 +1922,11 @@ function rCartoes(){
 // ── RENDER: CONTAS ──
 function rContas(){
   const si=D.cfg.saldoInicial||0;
-  const total=si+D.wallet.reduce((s,w)=>w.type==='entrada'?s+w.valor:(w.type==='saida'?s-w.valor:s),0);
-  const entradas=D.wallet.filter(w=>w.type==='entrada').reduce((s,w)=>s+w.valor,0);
-  const saidas=D.wallet.filter(w=>w.type==='saida').reduce((s,w)=>s+w.valor,0);
+  // Lê valor tanto do campo 'valor' (GG) quanto 'amount' (FP antigo)
+  const wVal=w=>(w.valor??w.amount??0);
+  const total=si+D.wallet.reduce((s,w)=>w.type==='entrada'?s+wVal(w):(w.type==='saida'?s-wVal(w):s),0);
+  const entradas=D.wallet.filter(w=>w.type==='entrada').reduce((s,w)=>s+wVal(w),0);
+  const saidas=D.wallet.filter(w=>w.type==='saida').reduce((s,w)=>s+wVal(w),0);
   document.getElementById('contas-stats').innerHTML=`
     <div class="stat ${total>=0?'b':'r'}"><div class="stat-lbl">Saldo Atual</div><div class="stat-val ${total>=0?'b':'r'}">${fmt(total)}</div>${si?`<div class="stat-comp">Incl. saldo inicial ${fmt(si)}</div>`:''}</div>
     <div class="stat g"><div class="stat-lbl">Total Entradas</div><div class="stat-val g">${fmt(entradas)}</div></div>
@@ -1830,7 +1935,8 @@ function rContas(){
   const sorted=[...D.wallet].sort((a,b)=>a.date.localeCompare(b.date));
   if(sorted.length>1){
     let running=si;
-    const cd=sorted.map(w=>{running+=w.type==='entrada'?w.valor:-w.valor;return{x:w.date,y:parseFloat(running.toFixed(2))};});
+    const wv2=w=>(w.valor??w.amount??0);
+    const cd=sorted.map(w=>{running+=w.type==='entrada'?wv2(w):-wv2(w);return{x:w.date,y:parseFloat(running.toFixed(2))};});
     dCh('ch-saldo');
     const accentColor=getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()||'#0071e3';
     _ch['ch-saldo']=new Chart(document.getElementById('ch-saldo'),{
