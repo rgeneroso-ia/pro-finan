@@ -610,8 +610,8 @@ input,select,textarea{font-family:var(--font);}
     <div class="m-hdr"><div class="m-title">Novo Parcelamento</div><button class="m-close" onclick="closeM('modal-parc')">×</button></div>
     <div class="fg"><label>Descrição</label><input type="text" id="p-desc" placeholder="Ex: TV Samsung 55'"></div>
     <div class="f-row">
-      <div class="fg"><label>Data da Compra</label><input type="date" id="p-data"></div>
-      <div class="fg"><label>Cartão</label><select id="p-cartao"></select></div>
+      <div class="fg"><label>Data da Compra</label><input type="date" id="p-data" onchange="updateParcFirstMonth()"></div>
+      <div class="fg"><label>Cartão</label><select id="p-cartao" onchange="updateParcFirstMonth()"></select></div>
     </div>
     <div class="f-row">
       <div class="fg"><label>Valor Total (R$)</label><input type="number" id="p-total" step="0.01" oninput="calcParc()"></div>
@@ -620,7 +620,7 @@ input,select,textarea{font-family:var(--font);}
     <div class="fg"><label>Valor por Parcela</label><input type="text" id="p-pval" readonly style="color:var(--green);font-weight:600;background:var(--bg3)"></div>
     <div class="f-row">
       <div class="fg"><label>Categoria</label><select id="p-cat"></select></div>
-      <div class="fg"><label>1ª Parcela em</label><input type="month" id="p-first"></div>
+      <div class="fg"><label>1ª Parcela em <span style="color:var(--text3);font-weight:400;text-transform:none;letter-spacing:0">(calculado pelo fechamento)</span></label><input type="month" id="p-first"></div>
     </div>
     <div class="f-actions"><button class="btn btn-ghost" onclick="closeM('modal-parc')">Cancelar</button><button class="btn btn-primary" onclick="saveParc()">Salvar</button></div>
   </div>
@@ -1043,21 +1043,54 @@ const getCat=id=>{const c=D.cats.find(c=>c.id===id);if(!c)return{name:'?',emoji:
 const getCard=id=>D.cartoes.find(c=>c.id===id)||null;
 const invKey=(cid,m,y)=>`inv_${cid}_${y}_${String(m+1).padStart(2,'0')}`;
 
+// Calcula em qual mês/ano de FATURA uma compra cai, baseado no dia de fechamento do cartão.
+// Ex: cartão fecha dia 8. Compra dia 16/05 → fatura de Junho (mês seguinte).
+//     Compra dia 05/05 → fatura de Maio (mês corrente, pois é antes do fechamento).
+function getInvoiceCycleMonth(dateStr, closeDay){
+  const d = new Date(dateStr+'T12:00:00');
+  let m = d.getMonth(), y = d.getFullYear();
+  if(d.getDate() > closeDay){
+    m++; if(m>11){m=0;y++;}
+  }
+  return {month:m, year:y};
+}
+
 function getMonthLancs(){
   return D.lancs.filter(l=>{
+    if(l.linkedCardId){
+      const card=getCard(l.linkedCardId);
+      if(card){
+        const cycle=getInvoiceCycleMonth(l.date, card.closeDay||999);
+        return cycle.month===CM && cycle.year===CY;
+      }
+    }
     const d=new Date(l.date+'T12:00:00');
     return d.getMonth()===CM&&d.getFullYear()===CY;
   });
 }
+// Calcula o "firstMonth" efetivo do parcelamento considerando o fechamento do cartão.
+// Se a compra foi feita depois do fechamento, a 1ª parcela cai na fatura do mês seguinte.
+function getEffectiveFirstMonth(p){
+  const ci = p.cartaoId||p.cardId||'';
+  const card = ci ? getCard(ci) : null;
+  if(card && p.purchaseDate){
+    const cycle = getInvoiceCycleMonth(p.purchaseDate, card.closeDay||999);
+    return `${cycle.year}-${String(cycle.month+1).padStart(2,'0')}`;
+  }
+  return p.firstMonth;
+}
+
 function getParcMonth(m,y){
   return D.parcs.filter(p=>{
     if(!p.firstMonth) return false;
-    const[fy,fm]=p.firstMonth.split('-').map(Number);
+    const effFirst = getEffectiveFirstMonth(p);
+    const[fy,fm]=effFirst.split('-').map(Number);
     const num=p.num||p.parcels||0;
     const start=fy*12+(fm-1), end=start+num-1, cur=y*12+m;
     return cur>=start&&cur<=end;
   }).map(p=>{
-    const[fy,fm]=p.firstMonth.split('-').map(Number);
+    const effFirst = getEffectiveFirstMonth(p);
+    const[fy,fm]=effFirst.split('-').map(Number);
     const pv=p.parcelVal||p.parcelValue||0;
     const ci=p.cartaoId||p.cardId||'';
     const catid=p.catId||p.categoryId||'';
@@ -1192,11 +1225,24 @@ window.onLType=function(){
 };
 function initParcM(){
   document.getElementById('p-data').value=today();
-  const now=new Date(); now.setMonth(now.getMonth()+1);
-  document.getElementById('p-first').value=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
   document.getElementById('p-cartao').innerHTML=D.cartoes.map(c=>`<option value="${c.id}">${c.name}</option>`).join('')||'<option value="">Sem cartão</option>';
   document.getElementById('p-cat').innerHTML=D.cats.map(c=>`<option value="${c.id}">${c.emoji} ${c.name}</option>`).join('');
+  updateParcFirstMonth();
 }
+// Sugere automaticamente a 1ª parcela baseada na data de compra + fechamento do cartão
+window.updateParcFirstMonth=function(){
+  const dataInput=document.getElementById('p-data').value;
+  const cardId=document.getElementById('p-cartao').value;
+  if(!dataInput) return;
+  const card=getCard(cardId);
+  if(card){
+    const cycle=getInvoiceCycleMonth(dataInput, card.closeDay||999);
+    document.getElementById('p-first').value=`${cycle.year}-${String(cycle.month+1).padStart(2,'0')}`;
+  } else {
+    const d=new Date(dataInput+'T12:00:00');
+    document.getElementById('p-first').value=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  }
+};
 function initAssinM(){
   document.getElementById('a-cartao').innerHTML=
     D.cartoes.map(c=>`<option value="CC::${c.id}">💳 ${c.name}</option>`).join('')+
