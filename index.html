@@ -326,6 +326,7 @@ input,select,textarea{font-family:var(--font);}
   <div class="bnav-more" id="bnav-more">
     <button class="bnav-mbtn" data-page="assinaturas" onclick="nav('assinaturas');closeBnav()">🔁 Assinaturas</button>
     <button class="bnav-mbtn" data-page="parcelamentos" onclick="nav('parcelamentos');closeBnav()">📅 Parcelamentos</button>
+    <button class="bnav-mbtn" data-page="categorias" onclick="nav('categorias');closeBnav()">🏷️ Categorias</button>
     <button class="bnav-mbtn" data-page="contas" onclick="nav('contas');closeBnav()">👛 Contas</button>
     <button class="bnav-mbtn" data-page="metas" onclick="nav('metas');closeBnav()">🎯 Metas</button>
     <button class="bnav-mbtn" data-page="dividas" onclick="nav('dividas');closeBnav()">🔴 Dívidas</button>
@@ -360,6 +361,7 @@ input,select,textarea{font-family:var(--font);}
         <button class="nav-item" data-page="parcelamentos"><span class="nav-icon">📅</span>Parcelamentos</button>
         <div class="nav-lbl" style="margin-top:8px">Contas</div>
         <button class="nav-item" data-page="cartoes"><span class="nav-icon">🃏</span>Cartões</button>
+        <button class="nav-item" data-page="categorias"><span class="nav-icon">🏷️</span>Categorias</button>
         <button class="nav-item" data-page="contas"><span class="nav-icon">👛</span>Contas & Saldo</button>
         <div class="nav-lbl" style="margin-top:8px">Planejar</div>
         <button class="nav-item" data-page="metas"><span class="nav-icon">🎯</span>Metas</button>
@@ -429,6 +431,15 @@ input,select,textarea{font-family:var(--font);}
         <div class="g2"><div class="card"><div class="ctitle">📅 Parcelas neste mês</div><div id="parc-cur"></div></div><div class="card"><div class="ctitle">📆 Próximos 6 meses</div><div id="parc-fut"></div></div></div>
         <div class="card mt-14"><div class="ctitle">Todos os parcelamentos</div><div class="nt-wrap"><table class="nt"><thead><tr><th>Descrição</th><th>Compra</th><th>Cartão</th><th>Total</th><th>Parcelas</th><th>Pagas</th><th>Restam</th><th></th></tr></thead><tbody id="parc-tbody"></tbody></table></div></div>
       </section>
+      <!-- CATEGORIAS -->
+      <section class="page" id="page-categorias">
+        <div class="page-hdr">
+          <div><div class="page-title">Categorias</div><div class="page-sub">Defina orçamentos mensais por categoria</div></div>
+          <button class="btn btn-primary" onclick="openM('modal-cat')">＋ Nova Categoria</button>
+        </div>
+        <div class="g3" id="cat-grid"></div>
+      </section>
+
       <!-- CARTÕES -->
       <section class="page" id="page-cartoes">
         <div class="page-hdr"><div><div class="page-title">Cartões de Crédito</div></div><button class="btn btn-primary" onclick="openM('modal-cartao')">＋ Novo Cartão</button></div>
@@ -528,6 +539,26 @@ input,select,textarea{font-family:var(--font);}
 </div>
 
 <!-- MODAIS -->
+<!-- CATEGORIA -->
+<div class="overlay" id="modal-cat">
+  <div class="modal" style="width:380px">
+    <div class="m-hdr"><div class="m-title" id="cat-m-title">Nova Categoria</div><button class="m-close" onclick="closeM('modal-cat');window._editCatId=null;">×</button></div>
+    <div class="fg"><label>Nome</label><input type="text" id="cat-nome" placeholder="Ex: Alimentação, Lazer..."></div>
+    <div class="f-row">
+      <div class="fg"><label>Emoji</label><input type="text" id="cat-emoji" placeholder="🛒" maxlength="2"></div>
+      <div class="fg"><label>Cor</label><input type="color" id="cat-cor" value="#34c759"></div>
+    </div>
+    <div class="fg">
+      <label>Orçamento Mensal (R$) <span style="color:var(--text3);font-weight:400;text-transform:none;letter-spacing:0">— opcional</span></label>
+      <input type="number" id="cat-budget" placeholder="Ex: 800,00" step="0.01" min="0">
+    </div>
+    <div class="f-actions">
+      <button class="btn btn-ghost" onclick="closeM('modal-cat');window._editCatId=null;">Cancelar</button>
+      <button class="btn btn-primary" id="cat-save-btn" onclick="saveCat()">Salvar</button>
+    </div>
+  </div>
+</div>
+
 <!-- LANÇAMENTO -->
 <div class="overlay" id="modal-lanc">
   <div class="modal" style="width:560px">
@@ -1008,7 +1039,7 @@ function normalizeCard(c){
 const fmt=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(n||0);
 const fmtD=s=>{if(!s)return'—';const[y,m,d]=s.split('-');return`${d}/${m}/${y}`;};
 const today=()=>new Date().toISOString().split('T')[0];
-const getCat=id=>D.cats.find(c=>c.id===id)||{name:'?',emoji:'📦',color:'#8e8e93'};
+const getCat=id=>{const c=D.cats.find(c=>c.id===id);if(!c)return{name:'?',emoji:'📦',color:'#8e8e93'};return{...c,name:c.name||c.nome||'?'};}
 const getCard=id=>D.cartoes.find(c=>c.id===id)||null;
 const invKey=(cid,m,y)=>`inv_${cid}_${y}_${String(m+1).padStart(2,'0')}`;
 
@@ -1020,12 +1051,19 @@ function getMonthLancs(){
 }
 function getParcMonth(m,y){
   return D.parcs.filter(p=>{
+    if(!p.firstMonth) return false;
     const[fy,fm]=p.firstMonth.split('-').map(Number);
-    const start=fy*12+(fm-1), end=start+p.num-1, cur=y*12+m;
+    const num=p.num||p.parcels||0;
+    const start=fy*12+(fm-1), end=start+num-1, cur=y*12+m;
     return cur>=start&&cur<=end;
   }).map(p=>{
     const[fy,fm]=p.firstMonth.split('-').map(Number);
-    return{...p,paidCount:y*12+m-(fy*12+(fm-1))+1};
+    const pv=p.parcelVal||p.parcelValue||0;
+    const ci=p.cartaoId||p.cardId||'';
+    const catid=p.catId||p.categoryId||'';
+    const num=p.num||p.parcels||0;
+    return{...p,parcelVal:pv,cartaoId:ci,catId:catid,num,
+      paidCount:y*12+m-(fy*12+(fm-1))+1};
   });
 }
 
@@ -1069,6 +1107,7 @@ function renderPage(p){
   else if(p==='lancamentos') rLanc();
   else if(p==='assinaturas') rAssin();
   else if(p==='parcelamentos') rParc();
+  else if(p==='categorias') rCats();
   else if(p==='cartoes') rCartoes();
   else if(p==='contas') rContas();
   else if(p==='metas') rMetas();
@@ -1081,7 +1120,19 @@ function renderPage(p){
 function renderAll(){
   const active=document.querySelector('.page.active');
   const pid=active?active.id.replace('page-',''):'dashboard';
-  rDash(); if(pid!=='dashboard') renderPage(pid);
+  rDash();
+  if(pid==='lancamentos') rLanc();
+  else if(pid==='assinaturas') rAssin();
+  else if(pid==='parcelamentos') rParc();
+  else if(pid==='categorias') rCats();
+  else if(pid==='cartoes') rCartoes();
+  else if(pid==='contas') rContas();
+  else if(pid==='metas') rMetas();
+  else if(pid==='dividas') rDividas();
+  else if(pid==='generosidade') rGen();
+  else if(pid==='investimentos') rInv();
+  else if(pid==='relatorios') rRelat();
+  else if(pid==='annual') renderAnnual();
 }
 
 // Month nav
@@ -1201,13 +1252,13 @@ window.saveLanc=async function(){
     D.lancs.push(normalizeLanc(obj));
     // Receita → entra na carteira
     if(type==='receita'){
-      const we={id:'w'+Date.now(),type:'entrada',desc:'[Receita] '+desc,valor,date:obj.date,fromLanc:obj.id,createdAt:Date.now()};
-      await saveD('wallet',we.id,we); D.wallet.push(we);
+      const we={id:'w'+Date.now(),type:'entrada',desc:'[Receita] '+desc,valor,amount:valor,date:obj.date,fromLanc:obj.id,createdAt:Date.now()};
+      await saveD('wallet',we.id,we); D.wallet.push(normalizeWallet(we));
     }
     // Despesa via carteira → sai do saldo
     if(type==='despesa'&&!linkedCardId&&isWalletPay(pagamento)){
-      const wx={id:'w'+Date.now(),type:'saida',desc:'['+pagamento+'] '+desc,valor,date:obj.date,fromLanc:obj.id,createdAt:Date.now()};
-      await saveD('wallet',wx.id,wx); D.wallet.push(wx);
+      const wx={id:'w'+Date.now(),type:'saida',desc:'['+pagamento+'] '+desc,valor,amount:valor,date:obj.date,fromLanc:obj.id,createdAt:Date.now()};
+      await saveD('wallet',wx.id,wx); D.wallet.push(normalizeWallet(wx));
     }
     // Categoria especial → alocação
     const cat=D.cats.find(c=>c.id===obj.cat);
@@ -1589,6 +1640,93 @@ async function saveCfg(){
   await setDoc(doc(db,'users',uid(),'config','main'),D.cfg,{merge:true});
 }
 
+// ── CATEGORIAS ──
+window.saveCat = async function(){
+  const nome=document.getElementById('cat-nome').value.trim();
+  if(!nome) return toast('Informe o nome','error');
+  const editId=window._editCatId;
+  if(editId){
+    const cat=D.cats.find(c=>c.id===editId);
+    if(cat){
+      cat.name=nome; cat.nome=nome;
+      cat.emoji=document.getElementById('cat-emoji').value||cat.emoji||'📦';
+      cat.color=document.getElementById('cat-cor').value||cat.color;
+      cat.budget=parseFloat(document.getElementById('cat-budget').value)||0;
+      await saveD('cats',editId,cat);
+      closeM('modal-cat'); window._editCatId=null;
+      document.getElementById('cat-m-title').textContent='Nova Categoria';
+      rCats(); toast('Categoria atualizada!');
+    }
+    return;
+  }
+  const obj={
+    id:'cat'+Date.now(),
+    nome, name:nome,
+    emoji:document.getElementById('cat-emoji').value||'📦',
+    color:document.getElementById('cat-cor').value||'#34c759',
+    budget:parseFloat(document.getElementById('cat-budget').value)||0,
+    createdAt:Date.now()
+  };
+  await saveD('cats',obj.id,obj); D.cats.push(obj);
+  closeM('modal-cat');
+  document.getElementById('cat-nome').value='';
+  document.getElementById('cat-budget').value='';
+  rCats(); toast('Categoria criada!');
+};
+
+window.editCat = function(id){
+  const cat=D.cats.find(c=>c.id===id); if(!cat)return;
+  window._editCatId=id;
+  document.getElementById('cat-nome').value=cat.name||cat.nome||'';
+  document.getElementById('cat-emoji').value=cat.emoji||'';
+  document.getElementById('cat-cor').value=cat.color||'#34c759';
+  document.getElementById('cat-budget').value=cat.budget||'';
+  document.getElementById('cat-m-title').textContent='Editar Categoria';
+  openM('modal-cat');
+};
+
+window.delCat = async function(id){
+  const isDefault=DCATS.find(c=>c.id===id);
+  if(isDefault) return toast('Categorias padrão não podem ser removidas','error');
+  if(!confirm('Remover categoria?'))return;
+  await delD('cats',id); D.cats=D.cats.filter(c=>c.id!==id);
+  rCats(); toast('Removida','info');
+};
+
+function rCats(){
+  const grid=document.getElementById('cat-grid'); if(!grid)return;
+  const monthTx=getMonthLancs().filter(t=>t.type==='despesa');
+  if(!D.cats.length){grid.innerHTML=`<div class="empty" style="grid-column:1/-1"><div class="empty-icon">🏷️</div><div class="empty-text">Nenhuma categoria</div></div>`;return;}
+  grid.innerHTML=D.cats.map(cat=>{
+    const catName=cat.name||cat.nome||'?';
+    const spent=monthTx.filter(t=>t.cat===cat.id).reduce((s,t)=>s+(t.valor||t.amount||0),0);
+    const budget=cat.budget||0;
+    const pct=budget?Math.min(100,(spent/budget)*100):0;
+    const pfClass=pct>=100?'pf-r':pct>=80?'pf-y':'pf-g';
+    const isDefault=DCATS.find(d=>d.id===cat.id);
+    const count=D.lancs.filter(l=>l.cat===cat.id).length;
+    return `<div class="card" style="border-left:3px solid ${cat.color||'#8e8e93'}">
+      <div class="flex-b" style="margin-bottom:${budget?'8px':'0'}">
+        <div class="flex-r gap-6">
+          <span style="font-size:22px">${cat.emoji||'📦'}</span>
+          <div>
+            <div style="font-weight:500;font-size:13px">${catName}</div>
+            <div style="font-size:11px;color:var(--text3)">${count} lançamentos${budget?' · Gasto: '+fmt(spent):''}</div>
+          </div>
+        </div>
+        <div class="flex-r gap-6">
+          <button class="btn btn-ghost btn-xs" onclick="editCat('${cat.id}')" title="Editar / Orçamento">💰</button>
+          ${!isDefault?`<button class="btn btn-danger btn-xs" onclick="delCat('${cat.id}')">✕</button>`:''}
+        </div>
+      </div>
+      ${budget?`<div>
+        <div class="flex-b" style="font-size:11px;color:var(--text3);margin-bottom:3px"><span>${fmt(spent)} de ${fmt(budget)}</span><span style="color:${pct>=100?'var(--red)':pct>=80?'var(--yellow)':'var(--text3)'}">${pct.toFixed(0)}%${pct>=100?' 🔴':pct>=80?' ⚠️':''}</span></div>
+        <div class="prog"><div class="prog-f ${pfClass}" style="width:${pct}%"></div></div>
+      </div>`:''}
+    </div>`;
+  }).join('');
+}
+
 // ── FILTROS ──
 window.clearFilters=function(){
   ['f-search','f-type','f-status','f-cat'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
@@ -1622,10 +1760,11 @@ function dCh(id){if(_ch[id]){_ch[id].destroy();delete _ch[id];}}
 function rDash(){
   document.getElementById('dash-sub').textContent=`${MOS[CM]} ${CY}`;
   const mtx=getMonthLancs();
-  const totalRec=mtx.filter(t=>t.type==='receita').reduce((s,t)=>s+t.valor,0);
-  const totalDesp=mtx.filter(t=>t.type==='despesa').reduce((s,t)=>s+t.valor,0);
+  const lv=t=>t.valor??t.amount??0;
+  const totalRec=mtx.filter(t=>t.type==='receita').reduce((s,t)=>s+lv(t),0);
+  const totalDesp=mtx.filter(t=>t.type==='despesa').reduce((s,t)=>s+lv(t),0);
   const instM=getParcMonth(CM,CY);
-  const totalInst=instM.reduce((s,i)=>s+i.parcelVal,0);
+  const totalInst=instM.reduce((s,i)=>s+(i.parcelVal||i.parcelValue||0),0);
   const saldo=totalRec-totalDesp-totalInst;
   const si=D.cfg.saldoInicial||0;
   const _wv=w=>(w.valor??w.amount??0);
@@ -1634,8 +1773,8 @@ function rDash(){
   // Comparativo
   let pm=CM-1,py=CY; if(pm<0){pm=11;py--;}
   const ptx=D.lancs.filter(t=>{const d=new Date(t.date+'T12:00:00');return d.getMonth()===pm&&d.getFullYear()===py;});
-  const prevRec=ptx.filter(t=>t.type==='receita').reduce((s,t)=>s+t.valor,0);
-  const prevDesp=ptx.filter(t=>t.type==='despesa').reduce((s,t)=>s+t.valor,0)+getParcMonth(pm,py).reduce((s,i)=>s+i.parcelVal,0);
+  const prevRec=ptx.filter(t=>t.type==='receita').reduce((s,t)=>s+(t.valor??t.amount??0),0);
+  const prevDesp=ptx.filter(t=>t.type==='despesa').reduce((s,t)=>s+(t.valor??t.amount??0),0)+getParcMonth(pm,py).reduce((s,i)=>s+i.parcelVal,0);
   function comp(cur,prev,inv=false){
     if(!prev||!cur)return '';
     const d=((cur-prev)/prev*100);
@@ -1661,8 +1800,8 @@ function rDash(){
     const ik=invKey(card.id,CM,CY);
     const paid=D.wallet.find(w=>w.invoiceKey===ik);
     if(paid||diff>5||diff<0)return;
-    const ci=instM.filter(i=>i.cartaoId===card.id).reduce((s,i)=>s+i.parcelVal,0);
-    const ct=mtx.filter(t=>t.linkedCardId===card.id&&t.type==='despesa').reduce((s,t)=>s+t.valor,0);
+    const ci=instM.filter(i=>(i.cartaoId||i.cardId)===card.id).reduce((s,i)=>s+(i.parcelVal||i.parcelValue||0),0);
+    const ct=mtx.filter(t=>t.linkedCardId===card.id&&t.type==='despesa').reduce((s,t)=>s+(t.valor||t.amount||0),0);
     const total=ci+ct; if(!total)return;
     const color=diff<=1?'var(--red)':'var(--yellow)';
     alertHtml+=`<div class="alert-card" style="background:${diff<=1?'var(--red-bg)':'var(--yellow-bg)'};border:1px solid ${color}40">
@@ -1702,8 +1841,8 @@ function rDash(){
 
   // Cartões no dashboard
   const cardsHtml=D.cartoes.map(card=>{
-    const ci=instM.filter(i=>i.cartaoId===card.id).reduce((s,i)=>s+i.parcelVal,0);
-    const ct=mtx.filter(t=>t.linkedCardId===card.id&&t.type==='despesa').reduce((s,t)=>s+t.valor,0);
+    const ci=instM.filter(i=>(i.cartaoId||i.cardId)===card.id).reduce((s,i)=>s+(i.parcelVal||i.parcelValue||0),0);
+    const ct=mtx.filter(t=>t.linkedCardId===card.id&&t.type==='despesa').reduce((s,t)=>s+(t.valor||t.amount||0),0);
     const total=ci+ct;
     const ik=invKey(card.id,CM,CY);
     const paid=D.wallet.find(w=>w.invoiceKey===ik);
@@ -1725,7 +1864,7 @@ function rDash(){
           <td style="color:var(--text2)">${fmtD(t.date)}</td>
           <td><strong>${t.desc}</strong></td>
           <td><span class="badge" style="background:${cat.color}18;color:${cat.color}">${cat.emoji} ${cat.name}</span></td>
-          <td style="color:${t.type==='receita'?'var(--green)':'var(--red)'};font-weight:600">${t.type==='receita'?'+':'−'}${fmt(t.valor)}</td>
+          <td style="color:${t.type==='receita'?'var(--green)':'var(--red)'};font-weight:600">${t.type==='receita'?'+':'−'}${fmt(t.valor??t.amount??0)}</td>
         </tr>`}).join('')}</tbody></table></div>`;
 
   rDashCharts(mtx,instM);
@@ -1737,8 +1876,8 @@ function rDashCharts(mtx,instM){
     let m=CM-i,y=CY; if(m<0){m+=12;y--;}
     labels.push(MOS[m].slice(0,3));
     const txs=D.lancs.filter(t=>{const d=new Date(t.date+'T12:00:00');return d.getMonth()===m&&d.getFullYear()===y;});
-    recD.push(txs.filter(t=>t.type==='receita').reduce((s,t)=>s+t.valor,0));
-    expD.push(txs.filter(t=>t.type==='despesa').reduce((s,t)=>s+t.valor,0)+getParcMonth(m,y).reduce((s,i)=>s+i.parcelVal,0));
+    recD.push(txs.filter(t=>t.type==='receita').reduce((s,t)=>s+(t.valor??t.amount??0),0));
+    expD.push(txs.filter(t=>t.type==='despesa').reduce((s,t)=>s+(t.valor??t.amount??0),0)+getParcMonth(m,y).reduce((s,i)=>s+(i.parcelVal||i.parcelValue||0),0));
   }
   dCh('ch-rx');
   _ch['ch-rx']=new Chart(document.getElementById('ch-rx'),{
@@ -1753,7 +1892,7 @@ function rDashCharts(mtx,instM){
         y:{ticks:{color:CC.tick(),font:CF,callback:v=>'R$'+v.toLocaleString('pt-BR')},grid:{color:CC.grid()},border:{display:false}}}}
   });
   const catMap={};
-  mtx.filter(t=>t.type==='despesa').forEach(t=>{catMap[t.cat]=(catMap[t.cat]||0)+t.valor;});
+  mtx.filter(t=>t.type==='despesa').forEach(t=>{catMap[t.cat]=(catMap[t.cat]||0)+(t.valor??t.amount??0);});
   instM.forEach(i=>{catMap[i.catId]=(catMap[i.catId]||0)+i.parcelVal;});
   const entries=Object.entries(catMap).sort((a,b)=>b[1]-a[1]).slice(0,7);
   dCh('ch-cat');
@@ -1797,7 +1936,7 @@ function rLanc(){
       <td><span class="badge" style="background:${cat.color}18;color:${cat.color}">${cat.emoji} ${cat.name}</span></td>
       <td style="font-size:12px;color:var(--text2)">${t.pagamento||'—'}</td>
       <td><span class="badge bgr">${necMap[t.necessidade]||'—'}</span></td>
-      <td style="color:${t.type==='receita'?'var(--green)':'var(--red)'};font-weight:600;white-space:nowrap">${t.type==='receita'?'+':'−'}${fmt(t.valor)}</td>
+      <td style="color:${t.type==='receita'?'var(--green)':'var(--red)'};font-weight:600;white-space:nowrap">${t.type==='receita'?'+':'−'}${fmt(t.valor??t.amount??0)}</td>
       <td><div class="flex-r" style="gap:4px">
         <button class="btn btn-ghost btn-xs" onclick="editLanc('${t.id}')">✏️</button>
         ${t.recorrente==='mensal'?`<button class="btn btn-ghost btn-xs" onclick="cancelRec('${t.id}')" style="color:var(--yellow)" title="Cancelar recorrência">🔁</button>`:''}
@@ -1843,13 +1982,13 @@ function rParc(){
     :curParc.map(p=>{const card=getCard(p.cartaoId);return `<div class="sub-row">
         <div><div style="font-weight:500;font-size:13px">${p.desc}</div>
           <div style="font-size:11px;color:var(--text3)">${p.paidCount}/${p.num} · ${card?card.name:'Sem cartão'} · Compra: ${fmtD(p.purchaseDate)}</div></div>
-        <div style="font-weight:600;color:var(--yellow)">${fmt(p.parcelVal)}</div>
+        <div style="font-weight:600;color:var(--yellow)">${fmt(p.parcelVal||p.parcelValue||0)}</div>
       </div>`;}).join('');
 
   let futHtml='';
   for(let offset=1;offset<=6;offset++){
     let m=CM+offset,y=CY; if(m>11){m-=12;y++;}
-    const ps=getParcMonth(m,y); const total=ps.reduce((s,i)=>s+i.parcelVal,0);
+    const ps=getParcMonth(m,y); const total=ps.reduce((s,i)=>s+(i.parcelVal||i.parcelValue||0),0);
     futHtml+=`<div class="flex-b" style="padding:8px 0;border-bottom:1px solid var(--border2)">
       <span style="font-size:12px;color:var(--text2)">${MOS[m].slice(0,3)} ${y}</span>
       <span style="font-weight:600;color:${total>0?'var(--yellow)':'var(--text3)'}">${fmt(total)}</span>
@@ -1870,7 +2009,7 @@ function rParc(){
       <td style="color:var(--text2)">${fmtD(p.purchaseDate)}</td>
       <td>${card?`<span class="badge bb">${card.name}</span>`:'—'}</td>
       <td style="font-weight:600">${fmt(p.total)}</td>
-      <td>${fmt(p.parcelVal)} × ${p.num}x</td>
+      <td>${fmt(p.parcelVal||p.parcelValue||0)} × ${p.num||p.parcels||0}x</td>
       <td><span class="badge bg">${paid}x</span></td>
       <td><span class="badge ${rem>0?'by':'bgr'}">${rem>0?rem+'x restantes':'✅ Quitado'}</span></td>
       <td><button class="btn btn-danger btn-xs" onclick="delParc('${p.id}')">✕</button></td>
@@ -1885,8 +2024,8 @@ function rCartoes(){
   const instM=getParcMonth(CM,CY);
   const mtx=getMonthLancs();
   grid.innerHTML=D.cartoes.map(card=>{
-    const ci=instM.filter(i=>i.cartaoId===card.id).reduce((s,i)=>s+i.parcelVal,0);
-    const ct=mtx.filter(t=>t.linkedCardId===card.id&&t.type==='despesa').reduce((s,t)=>s+t.valor,0);
+    const ci=instM.filter(i=>(i.cartaoId||i.cardId)===card.id).reduce((s,i)=>s+(i.parcelVal||i.parcelValue||0),0);
+    const ct=mtx.filter(t=>t.linkedCardId===card.id&&t.type==='despesa').reduce((s,t)=>s+(t.valor||t.amount||0),0);
     const total=ci+ct;
     const pct=card.limit?Math.min(100,total/card.limit*100):0;
     const ik=invKey(card.id,CM,CY);
@@ -1954,7 +2093,7 @@ function rContas(){
     <td style="color:var(--text2)">${fmtD(w.date)}</td>
     <td>${w.desc}</td>
     <td><span class="badge ${w.type==='entrada'?'bg':w.type==='saida'?'br':'bb'}">${{entrada:'⬇️ Entrada',saida:'⬆️ Saída',transferencia:'🔄 Transf.'}[w.type]||w.type}</span></td>
-    <td style="color:${w.type==='entrada'?'var(--green)':'var(--red)'};font-weight:600">${w.type==='entrada'?'+':'−'}${fmt(w.valor)}</td>
+    <td style="color:${w.type==='entrada'?'var(--green)':'var(--red)'};font-weight:600">${w.type==='entrada'?'+':'−'}${fmt(w.valor??w.amount??0)}</td>
     <td><button class="btn btn-danger btn-xs" onclick="delWallet('${w.id}')">✕</button></td>
   </tr>`).join('');
 }
@@ -2063,8 +2202,8 @@ window.rDividas=function(){
 // ── RENDER: GENEROSIDADE ──
 function rGen(){
   const now=new Date();
-  const totalAno=D.gen.filter(g=>{const d=new Date(g.date+'T12:00:00');return d.getFullYear()===CY;}).reduce((s,g)=>s+g.valor,0);
-  const totalMes=D.gen.filter(g=>{const d=new Date(g.date+'T12:00:00');return d.getMonth()===CM&&d.getFullYear()===CY;}).reduce((s,g)=>s+g.valor,0);
+  const totalAno=D.gen.filter(g=>{const d=new Date(g.date+'T12:00:00');return d.getFullYear()===CY;}).reduce((s,g)=>s+(g.valor??g.amount??0),0);
+  const totalMes=D.gen.filter(g=>{const d=new Date(g.date+'T12:00:00');return d.getMonth()===CM&&d.getFullYear()===CY;}).reduce((s,g)=>s+(g.valor??g.amount??0),0);
   document.getElementById('gen-stats').innerHTML=`
     <div class="stat p"><div class="stat-lbl">Este Mês</div><div class="stat-val p">${fmt(totalMes)}</div></div>
     <div class="stat p"><div class="stat-lbl">Este Ano</div><div class="stat-val p">${fmt(totalAno)}</div></div>
@@ -2079,7 +2218,7 @@ function rGen(){
     <td><strong>${g.desc}</strong></td>
     <td><span class="gen-tag">${tMap[g.tipo]||g.tipo}</span></td>
     <td style="color:var(--text2)">${g.para||'—'}</td>
-    <td style="color:var(--purple);font-weight:600">${fmt(g.valor)}</td>
+    <td style="color:var(--purple);font-weight:600">${fmt(g.valor??g.amount??0)}</td>
     <td><button class="btn btn-danger btn-xs" onclick="delGen('${g.id}')">✕</button></td>
   </tr>`).join('');
 }
@@ -2131,10 +2270,10 @@ window.renderAnnual=function(){
   const rows=[];
   for(let m=0;m<12;m++){
     const txs=D.lancs.filter(t=>{const d=new Date(t.date+'T12:00:00');return d.getMonth()===m&&d.getFullYear()===selY;});
-    const rec=txs.filter(t=>t.type==='receita').reduce((s,t)=>s+t.valor,0);
-    const desp=txs.filter(t=>t.type==='despesa').reduce((s,t)=>s+t.valor,0)+getParcMonth(m,selY).reduce((s,i)=>s+i.parcelVal,0);
+    const rec=txs.filter(t=>t.type==='receita').reduce((s,t)=>s+(t.valor??t.amount??0),0);
+    const desp=txs.filter(t=>t.type==='despesa').reduce((s,t)=>s+(t.valor??t.amount??0),0)+getParcMonth(m,selY).reduce((s,i)=>s+(i.parcelVal||i.parcelValue||0),0);
     const saldo=rec-desp; acc+=saldo; totRec+=rec; totDesp+=desp;
-    txs.filter(t=>t.type==='despesa').forEach(t=>{catMap[t.cat]=(catMap[t.cat]||0)+t.valor;});
+    txs.filter(t=>t.type==='despesa').forEach(t=>{catMap[t.cat]=(catMap[t.cat]||0)+(t.valor??t.amount??0);});
     cL.push(MOS[m].slice(0,3)); cR.push(rec); cD.push(desp);
     const isCur=m===CM&&selY===CY;
     rows.push(`<tr style="${isCur?'background:var(--bg3)':''}">
@@ -2194,7 +2333,7 @@ window.exportCSV=function(){
     const cat=getCat(t.cat); const st=calcStatus(t);
     return[fmtD(t.date),t.desc,t.type==='receita'?'Receita':'Despesa',{previsto:'Previsto',pago:'Pago',atrasado:'Atrasado'}[st]||st,
       cat.name,t.pagamento||'-',necM[t.necessidade]||'-',natM[t.natureza]||'-',
-      (t.type==='receita'?'+':'-')+t.valor.toFixed(2).replace('.',',')];
+      (t.type==='receita'?'+':'-')+((t.valor??t.amount??0).toFixed(2).replace('.',','))];
   })];
   function esc(v){const s=String(v||'');return(s.indexOf(';')>=0||s.indexOf('"')>=0||s.indexOf(String.fromCharCode(10))>=0)?'"'+s.replace(/"/g,'""')+'"':s;}
   const csv='\uFEFF'+rows.map(r=>r.map(esc).join(';')).join('\r\n');
